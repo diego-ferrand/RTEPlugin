@@ -1,6 +1,7 @@
 package com.blazemeter.jmeter.rte.extractor;
 
 import com.blazemeter.jmeter.rte.core.Position;
+import com.fasterxml.jackson.annotation.JsonValue;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -47,6 +48,7 @@ public class PositionRange {
   }
 
   @Override
+  @JsonValue
   public String toString() {
     return "[" + start + "-" + end + "]";
   }

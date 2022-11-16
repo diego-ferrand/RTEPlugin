@@ -28,16 +28,25 @@ public class RTEExtractorTest {
 
   public static final String POSITION_VAR_ROW = "positionVar_ROW";
   public static final String POSITION_VAR_COLUMN = "positionVar_COLUMN";
+  public static final String COLOR_VAR_TEXT = "positionVar";
   public static final String VARIABLE_PREFIX = "positionVar";
+  private static final String SEGMENTS =
+      "{\"range\":\"[(2,25)-(2,30)]\",\"editable\":true, \"color\":\"#FF0001\"}," +
+      "{\"range\":\"[(4,25)-(4,30)]\",\"editable\":true, \"color\":\"#FF0002\"}," +
+      "{\"range\":\"[(6,25)-(6,30)]\",\"editable\":true, \"color\":\"#FF0003\"}," +
+      "{\"range\":\"[(7,25)-(7,30)]\",\"editable\":true}";
+
+  private static final String SEGMENT_HEADER = "Segments: [" + SEGMENTS + "]";
   private static final String RESPONSE_HEADERS = "Input-inhibited: true\n" +
       "Cursor-position: (1,1)" + '\n' +
-      "Field-positions: [(2,25)-(2,30)], [(4,25)-(4,30)], [(6,25)-(6,30)]\n";
+      "Field-positions: [(2,25)-(2,30)], [(4,25)-(4,30)], [(6,25)-(6,30)]\n" +
+          SEGMENT_HEADER;
   @Rule
   public JUnitSoftAssertions softly = new JUnitSoftAssertions();
   @Parameter()
   public String variablePrefix;
   @Parameter(1)
-  public PositionType positionType;
+  public ExtractionType extractionAction;
   @Parameter(2)
   public String baseRow;
   @Parameter(3)
@@ -48,6 +57,8 @@ public class RTEExtractorTest {
   public String extractedRow;
   @Parameter(6)
   public String extractedColumn;
+  @Parameter(7)
+  public String extractedColor;
 
   private JMeterContext context;
   private RTEExtractor rteExtractor;
@@ -79,23 +90,26 @@ public class RTEExtractorTest {
   @Parameters
   public static Collection<Object[]> data() {
     return Arrays.asList(new Object[][]{
-        {VARIABLE_PREFIX, PositionType.NEXT_FIELD_POSITION, "100", "200", "1", null, null},
-        {VARIABLE_PREFIX, PositionType.NEXT_FIELD_POSITION, "2", "25", "10", null, null},
-        {VARIABLE_PREFIX, PositionType.NEXT_FIELD_POSITION, "2", "25", "0", "2", "25"},
-        {VARIABLE_PREFIX, PositionType.NEXT_FIELD_POSITION, "2", "24", "1", "2", "25"},
-        {VARIABLE_PREFIX, PositionType.NEXT_FIELD_POSITION, "2", "25", "1", "4", "25"},
-        {VARIABLE_PREFIX, PositionType.NEXT_FIELD_POSITION, "2", "26", "1", "4", "25"},
-        {VARIABLE_PREFIX, PositionType.NEXT_FIELD_POSITION, "2", "24", "2", "4", "25"},
-        {VARIABLE_PREFIX, PositionType.NEXT_FIELD_POSITION, "2", "25", "2", "6", "25"},
-        {VARIABLE_PREFIX, PositionType.NEXT_FIELD_POSITION, "4", "25", "2", null, null},
-        {VARIABLE_PREFIX, PositionType.NEXT_FIELD_POSITION, "2", "24", "-1", null, null},
-        {VARIABLE_PREFIX, PositionType.NEXT_FIELD_POSITION, "2", "30", "-1", null, null},
-        {VARIABLE_PREFIX, PositionType.NEXT_FIELD_POSITION, "2", "31", "-1", "2", "25"},
-        {VARIABLE_PREFIX, PositionType.NEXT_FIELD_POSITION, "2", "31", "-2", null, null},
-        {VARIABLE_PREFIX, PositionType.NEXT_FIELD_POSITION, "4", "30", "-2", null, null},
-        {VARIABLE_PREFIX, PositionType.NEXT_FIELD_POSITION, "4", "31", "-2", "2", "25"},
-        {"", PositionType.NEXT_FIELD_POSITION, "2", "25", "0", null, null},
-        {VARIABLE_PREFIX, PositionType.CURSOR_POSITION, null, null, null, "1", "1"}
+        {VARIABLE_PREFIX, ExtractionType.NEXT_FIELD_POSITION, "100", "200", "1", null, null, null},
+        {VARIABLE_PREFIX, ExtractionType.NEXT_FIELD_POSITION, "2", "25", "10", null, null, null},
+        {VARIABLE_PREFIX, ExtractionType.NEXT_FIELD_POSITION, "2", "25", "0", "2", "25", null},
+        {VARIABLE_PREFIX, ExtractionType.NEXT_FIELD_POSITION, "2", "24", "1", "2", "25", null},
+        {VARIABLE_PREFIX, ExtractionType.NEXT_FIELD_POSITION, "2", "25", "1", "4", "25", null},
+        {VARIABLE_PREFIX, ExtractionType.NEXT_FIELD_POSITION, "2", "26", "1", "4", "25", null},
+        {VARIABLE_PREFIX, ExtractionType.NEXT_FIELD_POSITION, "2", "24", "2", "4", "25", null},
+        {VARIABLE_PREFIX, ExtractionType.NEXT_FIELD_POSITION, "2", "25", "2", "6", "25", null},
+        {VARIABLE_PREFIX, ExtractionType.NEXT_FIELD_POSITION, "4", "25", "3", null, null, null},
+        {VARIABLE_PREFIX, ExtractionType.NEXT_FIELD_POSITION, "2", "24", "-1", null, null, null},
+        {VARIABLE_PREFIX, ExtractionType.NEXT_FIELD_POSITION, "2", "30", "-1", null, null, null},
+        {VARIABLE_PREFIX, ExtractionType.NEXT_FIELD_POSITION, "2", "31", "-1", "2", "25", null},
+        {VARIABLE_PREFIX, ExtractionType.NEXT_FIELD_POSITION, "2", "31", "-2", null, null, null},
+        {VARIABLE_PREFIX, ExtractionType.NEXT_FIELD_POSITION, "4", "30", "-2", null, null, null},
+        {VARIABLE_PREFIX, ExtractionType.NEXT_FIELD_POSITION, "4", "31", "-2", "2", "25", null},
+        {"", ExtractionType.NEXT_FIELD_POSITION, "2", "25", "0", null, null, null},
+        {VARIABLE_PREFIX, ExtractionType.CURSOR_POSITION, null, null, null, "1", "1", null},
+        {VARIABLE_PREFIX, ExtractionType.COLOR, "2", "25", null, null, null, "#ff0001"},
+        {VARIABLE_PREFIX, ExtractionType.COLOR, "7", "25", null, null, null, null},
+        {VARIABLE_PREFIX, ExtractionType.COLOR, "2", "30", null, null, null, "#ff0001"},
     });
   }
 
@@ -105,31 +119,29 @@ public class RTEExtractorTest {
     rteExtractor = new RTEExtractor();
     rteExtractor.setContext(context);
     context.setVariables(new JMeterVariables());
+    setUpExtractor();
   }
 
   @Test
-  public void whenNextFieldPositionCases() {
-    if(positionType.equals(PositionType.NEXT_FIELD_POSITION)){
-    setUpExtractorForNextFieldPosition(offset, baseRow, baseColumn, variablePrefix);
-    } else {
-      setUpExtractorForCursorPosition();
-    }
+  public void shouldExtractAttributesFromFieldsForCases() {
     rteExtractor.process();
-    softly.assertThat(context.getVariables().get(POSITION_VAR_ROW)).isEqualTo(extractedRow);
-    softly.assertThat(context.getVariables().get(POSITION_VAR_COLUMN)).isEqualTo(extractedColumn);
+    JMeterVariables vars = context.getVariables();
+    softly.assertThat(vars.get(POSITION_VAR_ROW)).isEqualTo(extractedRow);
+    softly.assertThat(vars.get(POSITION_VAR_COLUMN)).isEqualTo(extractedColumn);
+    softly.assertThat(vars.get(COLOR_VAR_TEXT)).isEqualTo(extractedColor);
   }
 
-  private void setUpExtractorForCursorPosition() {
-    rteExtractor.setPositionType(PositionType.CURSOR_POSITION);
-    rteExtractor.setVariablePrefix(VARIABLE_PREFIX);
-  }
+  private void setUpExtractor() {
+    rteExtractor.setExtractionType(extractionAction);
+    rteExtractor.setVariablePrefix(variablePrefix);
 
-  private void setUpExtractorForNextFieldPosition(String offset, String row, String column,
-      String prefix) {
-    rteExtractor.setPositionType(PositionType.NEXT_FIELD_POSITION);
-    rteExtractor.setVariablePrefix(prefix);
-    rteExtractor.setOffset(offset);
-    rteExtractor.setRow(row);
-    rteExtractor.setColumn(column);
+    if (!extractionAction.equals(ExtractionType.CURSOR_POSITION)) {
+      rteExtractor.setRow(baseRow);
+      rteExtractor.setColumn(baseColumn);
+    }
+
+    if(extractionAction.equals(ExtractionType.NEXT_FIELD_POSITION)){
+      rteExtractor.setOffset(offset);
+    }
   }
 }

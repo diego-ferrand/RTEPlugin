@@ -13,4 +13,6 @@ public interface TerminalEmulatorListener {
   void onWaitForText(String text);
 
   void onAssertionScreen(String name, String text);
+
+  void onColorAssertion(String name, String color, int col, int row);
 }

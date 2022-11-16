@@ -4,7 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
 
 import com.blazemeter.jmeter.rte.core.Position;
-import com.blazemeter.jmeter.rte.core.Screen;
+import com.blazemeter.jmeter.rte.core.ScreenTest;
 import com.blazemeter.jmeter.rte.core.exceptions.RteIOException;
 import com.blazemeter.jmeter.rte.core.wait.Area;
 import com.blazemeter.jmeter.rte.core.wait.TextWaitCondition;
@@ -30,7 +30,7 @@ public class ScreenTextListenerIT extends Vt420ConditionWaiterIT {
   }
 
   private void setupScreenWithText(String screen) {
-    when(client.getScreen()).thenReturn(Screen.valueOf(screen));
+    when(client.getScreen()).thenReturn(ScreenTest.screenFromUnnormalizedText(screen));
   }
 
   @Override
@@ -80,7 +80,7 @@ public class ScreenTextListenerIT extends Vt420ConditionWaiterIT {
     ScreenTextListener listener = buildTextListener(EXPECTED_SCREEN);
     listener.await();
   }
-  
+
   @Test
   public void shouldThrowTimeoutExceptionWhenReceivedExpectedScreenButKeepGettingStateChanges()
       throws Exception {
@@ -89,7 +89,7 @@ public class ScreenTextListenerIT extends Vt420ConditionWaiterIT {
     startPeriodicEventGenerator(buildNewScreenChange());
     listener.await();
   }
-  
+
   @Test
   public void shouldThrowTimeoutExceptionWhenReceivedExpectedScreenButKeepGettingScreens()
       throws Exception {

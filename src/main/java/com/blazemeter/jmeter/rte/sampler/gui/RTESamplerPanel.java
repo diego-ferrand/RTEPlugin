@@ -86,14 +86,10 @@ public class RTESamplerPanel extends JPanel {
     BlazemeterLabsLogo blazemeterLabsLogo = new BlazemeterLabsLogo();
 
     layout.setHorizontalGroup(layout.createParallelGroup()
-        .addComponent(modePanel, GroupLayout.DEFAULT_SIZE, GroupLayout.PREFERRED_SIZE,
-            Short.MAX_VALUE)
-        .addComponent(requestPanel, GroupLayout.DEFAULT_SIZE, GroupLayout.PREFERRED_SIZE,
-            Short.MAX_VALUE)
-        .addComponent(waitPanel, GroupLayout.DEFAULT_SIZE, GroupLayout.PREFERRED_SIZE,
-            Short.MAX_VALUE)
-        .addComponent(blazemeterLabsLogo, GroupLayout.DEFAULT_SIZE, GroupLayout.PREFERRED_SIZE,
-            Short.MAX_VALUE));
+        .addComponent(modePanel)
+        .addComponent(requestPanel)
+        .addComponent(waitPanel)
+        .addComponent(blazemeterLabsLogo));
     layout.setVerticalGroup(layout.createSequentialGroup()
         .addComponent(modePanel, GroupLayout.PREFERRED_SIZE, GroupLayout.PREFERRED_SIZE,
             GroupLayout.PREFERRED_SIZE)

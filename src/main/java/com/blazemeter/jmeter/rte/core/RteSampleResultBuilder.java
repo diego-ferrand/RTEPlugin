@@ -1,13 +1,14 @@
 package com.blazemeter.jmeter.rte.core;
 
-import com.blazemeter.jmeter.rte.core.Screen.Segment;
 import com.blazemeter.jmeter.rte.core.ssl.SSLType;
 import com.blazemeter.jmeter.rte.sampler.Action;
 import com.helger.commons.annotation.VisibleForTesting;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.nio.charset.StandardCharsets;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 import org.apache.jmeter.samplers.SampleResult;
 
@@ -25,6 +26,8 @@ public class RteSampleResultBuilder {
   public static final String CURSOR_POSITION_HEADER = "Cursor-position: ";
   public static final String FIELDS_POSITION_HEADER = "Field-positions: ";
   public static final String HEADERS_SEPARATOR = "\n";
+  public static final String SEGMENTS = "Segments: ";
+  private static final String INPUT_INHIBITED = "Input-inhibited";
   private SampleResult result;
   private String server;
   private int port;
@@ -182,12 +185,13 @@ public class RteSampleResultBuilder {
 
   private String buildRequestHeaders() {
     return "Server: " + server + "\n" +
-        "Port: " + port + "\n" +
-        "Protocol: " + protocol + "\n" +
-        HEADERS_TERMINAL_TYPE + terminalType + "\n" +
-        "Security: " + sslType + "\n" +
-        "Action: " + action + "\n" +
-        (inputInhibitedRequest != null ? "Input-inhibited: " + inputInhibitedRequest + "\n" : "");
+            "Port: " + port + "\n" +
+            "Protocol: " + protocol + "\n" +
+            HEADERS_TERMINAL_TYPE + terminalType + "\n" +
+            "Security: " + sslType + "\n" +
+            "Action: " + action + "\n" +
+            (inputInhibitedRequest != null ? "Input-inhibited: " + inputInhibitedRequest + 
+                    "\n" : "");
   }
 
   private String buildSamplerData() {
@@ -208,23 +212,41 @@ public class RteSampleResultBuilder {
     }
 
     String fieldsPositions = getFieldsPositions();
-    return "Input-inhibited: " + inputInhibitedResponse + HEADERS_SEPARATOR +
-        CURSOR_POSITION_HEADER + (cursorPosition != null ? cursorPosition.toString() : "")
-        + HEADERS_SEPARATOR +
-        (soundedAlarm ? "Sound-Alarm: true" + HEADERS_SEPARATOR : "") +
-        (!fieldsPositions.isEmpty() ? FIELDS_POSITION_HEADER
-            + fieldsPositions + HEADERS_SEPARATOR : "");
-
+    String segmentsAttributes = getSegmentsAttributes();
+    
+    Map<String, String> headers = new LinkedHashMap<>();
+    headers.put("Deprecated-headers", "Field-positions");
+    headers.put("Sound-Alarm", Boolean.toString(soundedAlarm));
+    headers.put(CURSOR_POSITION_HEADER, cursorPosition == null ? "" : cursorPosition.toString());
+    headers.put("Segments", segmentsAttributes);
+    headers.put(INPUT_INHIBITED, Boolean.toString(inputInhibitedResponse));
+    //Field positions is deprecated and will be removed in future releases
+    headers.put(FIELDS_POSITION_HEADER, fieldsPositions);
+    
+    return headers.entrySet().stream()
+            .map(h -> h.getKey() + (h.getKey().contains(": ") ? "" : ": ") + h.getValue())
+            .collect(Collectors.joining(HEADERS_SEPARATOR));
   }
-
+  
   private String getFieldsPositions() {
     if (screen == null) {
       return "";
     }
+    
     return screen.getSegments().stream()
         .filter(Segment::isEditable)
         .map(s -> s.getPositionRange().toString())
         .collect(Collectors.joining(", "));
 
+  }
+
+  private String getSegmentsAttributes() {
+    if (screen == null) {
+      return "";
+    }
+
+    return "[" + screen.getSegments().stream()
+            .map(Segment::toJSON)
+            .collect(Collectors.joining(", ")) + "]";
   }
 }

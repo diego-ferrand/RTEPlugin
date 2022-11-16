@@ -6,6 +6,7 @@ import com.blazemeter.jmeter.rte.core.Input;
 import com.blazemeter.jmeter.rte.core.NavigationInput.NavigationInputBuilder;
 import com.blazemeter.jmeter.rte.core.Position;
 import com.blazemeter.jmeter.rte.core.Screen;
+import com.blazemeter.jmeter.rte.core.Segment;
 import com.blazemeter.jmeter.rte.protocols.vt420.Vt420Client;
 import com.blazemeter.jmeter.rte.sampler.NavigationType;
 import java.awt.Dimension;
@@ -40,6 +41,16 @@ public class CharacterBasedEmulator extends
   private int pastingCharactersCount = 0;
   private int pastedCharactersCount = 0;
   private NavigationInputBuilder currentInput = new NavigationInputBuilder();
+
+  public CharacterBasedEmulator() {
+    attributeTranslator = new AttributeTranslator(getCrtBuffer()) {
+      @Override
+      public int calculateAttrFrom(Segment segment) {
+        return segment.getColor().equals(Screen.DEFAULT_COLOR) ? DEFAULT_ATTR
+            : SECRET_CREDENTIAL_ATTR;
+      }
+    };
+  }
 
   @Override
   protected synchronized void processKeyEvent(KeyEvent e) {
@@ -114,7 +125,7 @@ public class CharacterBasedEmulator extends
     if (!sequencesInClipboard.isEmpty()) {
       String chunkAppearances = CharacterSequenceScaper.getSequenceChunkAppearancesIn(value);
       JOptionPane.showMessageDialog(this, "Clipboard content '" + String.join(", ",
-          sequencesInClipboard) + "' is not "
+              sequencesInClipboard) + "' is not "
               + "supported when pasting. \nAppearances of sequences near to: "
               + chunkAppearances, "Paste error",
           JOptionPane.INFORMATION_MESSAGE);
@@ -162,16 +173,14 @@ public class CharacterBasedEmulator extends
       if (navigationKey.isPresent()) {
         buildNavigationInput(navigationKey.get());
       } else {
-        if (lastCursorPosition == null
-            || lastCursorPosition.isConsecutiveWith(cursorPosition)
-            || inputBuffer.length() == 0) {
-          inputBuffer.append(value);
-        } else {
+        if (lastCursorPosition != null
+            && !lastCursorPosition.isConsecutiveWith(cursorPosition)
+            && inputBuffer.length() != 0) {
           buildDefaultInputWhenNoNavigationType();
           insertCurrentInput();
           currentInput.withNavigationType(NavigationType.TAB);
-          inputBuffer.append(value);
         }
+        inputBuffer.append(value);
       }
     }
     lastCursorPosition = new Position(cursorPosition);

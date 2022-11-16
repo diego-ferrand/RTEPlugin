@@ -15,6 +15,7 @@ public class ThemedIcon {
         .computeIfAbsent(resourcePath, p -> new ImageIcon(ThemedIcon.class.getResource(p)));
   }
 
+  //TODO: Need to add the dependency to the JMeter BZM Commons
   private static String getThemePath() {
     return "Darcula".equals(UIManager.getLookAndFeel().getID()) ? "/dark-theme" : "/light-theme";
   }

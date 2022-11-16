@@ -2,7 +2,9 @@ package com.blazemeter.jmeter.rte.extractor;
 
 import static org.assertj.swing.fixture.Containers.showInFrame;
 
+import java.awt.Dimension;
 import org.assertj.core.api.JUnitSoftAssertions;
+import org.assertj.swing.core.ComponentLookupScope;
 import org.assertj.swing.fixture.FrameFixture;
 import org.junit.After;
 import org.junit.Before;
@@ -14,17 +16,21 @@ import org.mockito.junit.MockitoJUnitRunner;
 @RunWith(MockitoJUnitRunner.class)
 public class RTEExtractorPanelIT {
 
-  public static final String NEXT_FIELD_POSITION = "nextFieldPosition";
-  public static final String CURSOR_POSITION = "cursorPosition";
+  private static final String ROW_FIELD = "fieldRow";
+  private static final String COLUMN_FIELD = "fieldColumn";
+  private static final String OFFSET_FIELD = "fieldOffset";
+
   @Rule
   public JUnitSoftAssertions softly = new JUnitSoftAssertions();
   private FrameFixture frame;
-  private RTEExtractorPanel panel;
 
   @Before
   public void setup() {
-    panel = new RTEExtractorPanel();
+    RTEExtractorPanel panel = new RTEExtractorPanel();
     frame = showInFrame(panel);
+    frame.resizeTo(new Dimension(panel.getWidth() * 2, panel.getWidth() * 2));
+    //Allows the frame to find elements that are not visible
+    frame.robot().settings().componentLookupScope(ComponentLookupScope.ALL);
   }
 
   @After
@@ -33,41 +39,56 @@ public class RTEExtractorPanelIT {
   }
 
   @Test
-  public void shouldSelectOneRadioButtonAndDeselectTheOtherOne() {
-    clickRadioButton(NEXT_FIELD_POSITION);
-    frame.radioButton(CURSOR_POSITION).requireNotSelected();
+  public void shouldDisplayRequiredFieldsWhenColorExtractorSelected() {
+    selectColor();
+    softly.assertThat(frame.textBox(ROW_FIELD).target().isVisible()).isTrue();
+    softly.assertThat(frame.textBox(COLUMN_FIELD).target().isVisible()).isTrue();
   }
 
-  private void clickRadioButton(String name) {
-    frame.radioButton(name).click();
-  }
-
-  @Test
-  public void shouldDisableNextFieldPanelWhenCursorPosition() {
-    clickRadioButton(CURSOR_POSITION);
-    frame.panel("fieldPanel").requireDisabled();
+  private void selectColor() {
+    frame.radioButton("colorExtractorRadioButton").click();
   }
 
   @Test
-  public void shouldGetConfiguredPropertiesWhenFieldsAreSet() {
-    clickRadioButton(NEXT_FIELD_POSITION);
-    setProperties();
-    softly.assertThat(panel.getVariablePrefix()).as("Variable Prefix Name").isEqualTo("position");
-    softly.assertThat(panel.getRow()).as("Field Row").isEqualTo("1");
-    softly.assertThat(panel.getColumn()).as("Field Column").isEqualTo("2");
-    softly.assertThat(panel.getOffset()).as("Field Position Offset").isEqualTo("1");
+  public void shouldDisplayRequiredFieldsWhenNextFieldPositionExtractorSelected() {
+    selectNextFieldPosition();
+    softly.assertThat(frame.textBox(ROW_FIELD).target().isVisible()).isTrue();
+    softly.assertThat(frame.textBox(COLUMN_FIELD).target().isVisible()).isTrue();
+    softly.assertThat(frame.textBox(OFFSET_FIELD).target().isVisible()).isTrue();
   }
 
-  private void setProperties() {
-    setTextField("variablePrefix", "position");
-    setTextField("fieldRow", "1");
-    setTextField("fieldColumn", "2");
-    setTextField("fieldOffset", "1");
+  private void selectNextFieldPosition() {
+    selectPositionsExtractor();
+    frame.radioButton("nextFieldPositionRadioButton").click();
   }
 
-  private void setTextField(String fieldName, String fieldValue) {
-    frame.textBox(fieldName).setText(fieldValue);
+  @Test
+  public void shouldHideOffsetWhenColorExtraction() {
+    selectColor();
+    frame.textBox(OFFSET_FIELD).requireNotVisible();
   }
 
+  @Test
+  public void shouldHideOffsetAndCoordsPanelWhenCursorSelected() {
+    selectColor();
+    selectCursor();
+    softly.assertThat(frame.textBox(OFFSET_FIELD).target().isShowing()).isFalse();
+    frame.panel("coordinatesPanel").requireNotVisible();
+  }
 
+  @Test
+  public void shouldSelectPositionsAndDeselectColor() {
+    selectColor();
+    selectPositionsExtractor();
+    frame.radioButton("colorExtractorRadioButton").requireNotSelected();
+  }
+
+  private void selectCursor() {
+    selectPositionsExtractor();
+    frame.radioButton("cursorPositionRadioButton").click();
+  }
+
+  private void selectPositionsExtractor() {
+    frame.radioButton("positionExtractorRadioButton").click();
+  }
 }

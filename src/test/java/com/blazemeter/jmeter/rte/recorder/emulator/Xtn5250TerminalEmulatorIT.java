@@ -1,5 +1,9 @@
 package com.blazemeter.jmeter.rte.recorder.emulator;
 
+import com.blazemeter.jmeter.rte.core.ColorUtils;
+import com.blazemeter.jmeter.rte.core.Segment;
+import com.bytezone.dm3270.attributes.ColorAttribute;
+import java.awt.Color;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 import static org.assertj.swing.timing.Pause.pause;
 import static org.junit.Assert.assertEquals;
@@ -54,9 +58,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import javax.swing.Icon;
 import javax.swing.ImageIcon;
-import javax.swing.JButton;
 import org.apache.commons.lang3.StringUtils;
 import org.assertj.core.api.JUnitSoftAssertions;
+import org.assertj.swing.core.GenericTypeMatcher;
 import org.assertj.swing.core.KeyPressInfo;
 import org.assertj.swing.driver.JComponentDriver;
 import org.assertj.swing.edt.GuiActionRunner;
@@ -102,6 +106,7 @@ public class Xtn5250TerminalEmulatorIT {
       + "-field.txt";
   private static final String WAIT_FOR_TEXT_BUTTON = "waitForTextButton";
   private static final String ASSERTION_BUTTON = "assertionButton";
+  private static final String COLOR_ASSERTION_BUTTON = "colorAssertionButton";
   private static final String KEYBOARD_LABEL = "keyboardLabel";
   private static final Position FIRST_VT_POS = new Position(11, 41);
   private static final Position SECOND_VT_POS = new Position(11, 42);
@@ -125,22 +130,50 @@ public class Xtn5250TerminalEmulatorIT {
     Dimension screenSize = new Dimension(80, 24);
     Screen screen = new Screen(screenSize);
     int segmentPosition = 0;
-    screen.addSegment(segmentPosition,
-        completeLine("*****************************************", screenSize.width));
+    addNoEditableSegment(screen, segmentPosition, completeLine(getBaseLine(), screenSize.width));
     segmentPosition += screenSize.width;
-    if (withFields) {
-      screen.addField(segmentPosition, completeLine(text, screenSize.width));
+    Segment.SegmentBuilder segmentBuilder = buildSegment(segmentPosition, completeLine(text, screenSize.width), Screen.DEFAULT_COLOR);
+    if (!withFields) {
+      screen.addSegment(segmentBuilder);
     } else {
-      screen.addSegment(segmentPosition,
-          completeLine(text, screenSize.width));
+      screen.addSegment(segmentBuilder.withEditable());
     }
     segmentPosition += screenSize.width;
-    for (String lineText : Arrays
-        .asList("TEXTO DE PRUEBA 1", "TEXTO DE PRUEBA 2", "TEXTO DE PRUEBA 3",
-            "*****************************************")) {
-      screen.addSegment(segmentPosition, completeLine(lineText, screenSize.width));
+    for (String lineText : Arrays.asList("TEXTO DE PRUEBA 1", "TEXTO DE PRUEBA 2", "TEXTO DE PRUEBA 3", getBaseLine())) {
+      addNoEditableSegment(screen, segmentPosition, completeLine(lineText, screenSize.width));
       segmentPosition += screenSize.width;
     }
+    return screen;
+  }
+
+  private static String getBaseLine() {
+    return "*****************************************";
+  }
+
+  private static Screen buildColoredScreen() {
+    Dimension screenSize = new Dimension(80, 24);
+    Screen screen = new Screen(screenSize);
+
+    int segmentPosition = 0;
+    int width = screenSize.width;
+    addNoEditableSegment(screen, segmentPosition, completeLine(getBaseLine(), width));
+    segmentPosition += width;
+
+    Segment.SegmentBuilder segmentBuilder = new Segment.SegmentBuilder()
+        .withLinealPosition(segmentPosition)
+        .withText(completeLine("WHITE TEXT", width))
+        .withColor(ColorAttribute.ALLOWED_COLORS[0]);
+
+    screen.addSegment(segmentBuilder);
+    segmentPosition += width;
+
+    addColoredNoEditableSegment(screen, segmentPosition,
+        completeLine("RED TEXT", width), ColorAttribute.ALLOWED_COLORS[1]);
+    segmentPosition += width;
+
+    addColoredNoEditableSegment(screen, segmentPosition,
+        completeLine("GREEN TEXT", width), ColorAttribute.ALLOWED_COLORS[2]);
+
     return screen;
   }
 
@@ -155,31 +188,46 @@ public class Xtn5250TerminalEmulatorIT {
     String password = "Insert Password: ";
     int fieldLength = 1;
     int linearPosition = 0;
-    linearPosition = addScreenSegment(screen, linearPosition, name);
-    linearPosition = addScreenField(screen, linearPosition, fieldLength);
+    linearPosition = addNoEditableSegment(screen, linearPosition, name);
+    linearPosition = addEditableSegment(screen, linearPosition, fieldLength);
 
-    linearPosition = addScreenSegment(screen, linearPosition,
+    linearPosition = addNoEditableSegment(screen, linearPosition,
         completeLine("", COLUMNS - linearPosition));
 
-    linearPosition = addScreenSegment(screen, linearPosition, password);
-    linearPosition = addScreenField(screen, linearPosition, fieldLength);
+    linearPosition = addNoEditableSegment(screen, linearPosition, password);
+    linearPosition = addEditableSegment(screen, linearPosition, fieldLength);
 
-    linearPosition = addScreenSegment(screen, linearPosition,
+    linearPosition = addNoEditableSegment(screen, linearPosition,
         completeLine("", COLUMNS - password.length() - fieldLength));
 
-    addScreenSegment(screen, linearPosition, completeLine(GOODBYE_TEXT, COLUMNS));
+    addNoEditableSegment(screen, linearPosition, completeLine(GOODBYE_TEXT, COLUMNS));
 
     return screen;
   }
 
-  private int addScreenSegment(Screen screen, int linearPosition, String name) {
-    screen.addSegment(linearPosition, name);
+  private static int addNoEditableSegment(Screen screen, int linearPosition, String name) {
+    screen.addSegment(buildSegment(linearPosition, name, Screen.DEFAULT_COLOR));
     return linearPosition + name.length();
   }
 
-  private int addScreenField(Screen screen, int linearPosition, int fieldLenght) {
-    screen.addField(linearPosition, StringUtils.repeat(' ', fieldLenght));
-    return linearPosition + fieldLenght;
+  private static Segment.SegmentBuilder buildSegment(int linearPosition, String name, Color defaultColor) {
+    return new Segment.SegmentBuilder()
+        .withLinealPosition(linearPosition)
+        .withText(name)
+        .withColor(defaultColor);
+  }
+
+  private int addEditableSegment(Screen screen, int linearPosition, int fieldLength) {
+    screen.addSegment(new Segment.SegmentBuilder().withLinealPosition(linearPosition)
+        .withEditable()
+        .withText(StringUtils.repeat(' ', fieldLength))
+        .withColor(Screen.DEFAULT_COLOR));
+    return linearPosition + fieldLength;
+  }
+
+  private static int addColoredNoEditableSegment(Screen screen, int linearPosition, String name, Color color) {
+    screen.addSegment(buildSegment(linearPosition, name, color));
+    return linearPosition + name.length();
   }
 
   private Set<AttentionKey> buildSupportedAttentionKeys() {
@@ -255,6 +303,24 @@ public class Xtn5250TerminalEmulatorIT {
     awaitTextInScreen(getFileContent(TEST_SCREEN_PRESS_KEY_ON_FIELD_FILE));
   }
 
+  private void setScreen(String text) {
+    setScreen(text, "");
+  }
+
+  private void setScreen(String text, String sampleName) {
+    setScreen(text, sampleName, true);
+  }
+
+  private void setScreen(String text, String sampleName, boolean withFields) {
+    GuiActionRunner.execute(() -> {
+      xtn5250TerminalEmulator.setScreenSize(COLUMNS, ROWS);
+      xtn5250TerminalEmulator.setScreen(buildScreen(text, withFields));
+      xtn5250TerminalEmulator.setScreenName(sampleName);
+    });
+    frame = new FrameFixture(xtn5250TerminalEmulator);
+    frame.show();
+  }
+
   @Test
   public void shouldGetProperTextWhenPressKeyOnFieldAndKeyboardIsLocked() throws IOException {
     setScreen("");
@@ -277,24 +343,6 @@ public class Xtn5250TerminalEmulatorIT {
     xtn5250TerminalEmulator.setKeyboardLock(false);
     sendKeyWithCursorUpdate(KeyEvent.VK_E, 0, 1, 1);
     awaitTextInScreen(getFileContent(TEST_SCREEN_FILE));
-  }
-
-  private void setScreen(String text) {
-    setScreen(text, "");
-  }
-
-  private void setScreen(String text, String sampleName, boolean withFields) {
-    GuiActionRunner.execute(() -> {
-      xtn5250TerminalEmulator.setScreenSize(COLUMNS, ROWS);
-      xtn5250TerminalEmulator.setScreen(buildScreen(text, withFields));
-      xtn5250TerminalEmulator.setScreenName(sampleName);
-    });
-    frame = new FrameFixture(xtn5250TerminalEmulator);
-    frame.show();
-  }
-
-  private void setScreen(String text, String sampleName) {
-    setScreen(text, sampleName, true);
   }
 
   private void sendKeyWithCursorUpdate(int key, int modifiers, int row, int column) {
@@ -345,9 +393,9 @@ public class Xtn5250TerminalEmulatorIT {
     assertTextIsInClipboard(CHUNK_OF_SCREEN);
   }
 
-  private void selectArea(int i, int i2, int i3, int i4) {
-    GuiActionRunner.execute(() -> xtn5250TerminalEmulator.setSelectedArea(new Rectangle(i, i2, i3,
-        i4)));
+  private void selectArea(int col, int row, int width, int height) {
+    GuiActionRunner.execute(() ->
+        xtn5250TerminalEmulator.setSelectedArea(new Rectangle(col, row, width, height)));
   }
 
   @Test
@@ -574,10 +622,13 @@ public class Xtn5250TerminalEmulatorIT {
   @Test
   public void shouldSwitchCredentialVisibilityIconWhenClickIcon() {
     setScreen("");
+    ImageIcon initial = getShowCredentialsIcon();
     frame.label("showCredentials").click();
-    Icon actual = frame.label("showCredentials").target().getIcon();
-    ImageIcon expected = new ImageIcon("/light-theme/visible-credentials.png");
-    assertThat(((ImageIcon) actual).getImage().equals(expected.getImage()));
+    assertThat(getShowCredentialsIcon().getDescription()).isNotEqualTo(initial.getDescription());
+  }
+
+  private ImageIcon getShowCredentialsIcon() {
+    return (ImageIcon) frame.label("showCredentials").target().getIcon();
   }
 
   @Test
@@ -682,13 +733,12 @@ public class Xtn5250TerminalEmulatorIT {
 
   private void updateCharacterBasedWelcomeScreen(String... inputs) {
     updateCharacterBasedScreen(getWelcomeScreenText(inputs));
-
   }
 
   private void updateCharacterBasedScreen(List<String> screenText) {
     screen = new Screen(new Dimension(80, 24));
     AtomicInteger linearPosition = new AtomicInteger();
-    screenText.forEach(l -> screen.addSegment(linearPosition.getAndAdd(80), l));
+    screenText.forEach(l -> addNoEditableSegment(screen, linearPosition.getAndAdd(80), l));
   }
 
   private List<String> getWelcomeScreenText(String... strings) {
@@ -723,12 +773,14 @@ public class Xtn5250TerminalEmulatorIT {
   }
 
   @Test
-  public void shouldNotCreateInputsWithInvalidCharacterWhenTypingInVT() {
+  public void shouldNotCreateInputsWithInvalidCharacterPositionWhenTypingInVT() {
     updateCharacterBasedWelcomeScreen();
     setupInteractiveCharacterEmulator();
     setCurrentCursorPositionAndScreen(SECOND_VT_POS);
-    sendKeyInCurrentPosition(KeyEvent.VK_T, 11, 42);
-    assertThat(xtn5250TerminalEmulator.getInputs().isEmpty());
+    sendKeyInCurrentPosition(KeyEvent.VK_T, 11, 41);
+    xtn5250TerminalEmulator.getInputs();
+    sendKeyInCurrentPosition(KeyEvent.VK_T, 11, 41);
+    assertThat(xtn5250TerminalEmulator.getInputs()).asList().isEmpty();
   }
 
   @Test
@@ -750,7 +802,7 @@ public class Xtn5250TerminalEmulatorIT {
 
   private void startSingleEventGenerator(Runnable eventGenerator) {
     ScheduledExecutorService eventGeneratorExecutor = Executors.newSingleThreadScheduledExecutor();
-    eventGeneratorExecutor.schedule(eventGenerator, (long) 500, TimeUnit.MILLISECONDS);
+    eventGeneratorExecutor.schedule(eventGenerator, 500, TimeUnit.MILLISECONDS);
   }
 
   private void awaitKeyboardToBeUnlocked() {
@@ -768,8 +820,8 @@ public class Xtn5250TerminalEmulatorIT {
     updateCharacterBasedWelcomeScreen();
     setupInteractiveCharacterEmulator();
     Icon actual = frame.label(BLOCK_CURSOR_LABEL).target().getIcon();
-    assertThat(actual.equals(ThemedIcon
-        .fromResourceName(BLOCKED_CURSOR_RESOURCE_NAME)));
+    assertThat(actual).isEqualTo(ThemedIcon
+        .fromResourceName(BLOCKED_CURSOR_RESOURCE_NAME));
   }
 
   @Test
@@ -872,7 +924,7 @@ public class Xtn5250TerminalEmulatorIT {
     sendKeyWithCursorUpdate(KeyEvent.VK_F, 0, 1, 1);
     verify(characterBasedProtocolClient, times(1)).send(anyString());
     frame.close();
-    assertThat(isClosed);
+    assertThat(isClosed.get()).isTrue();
   }
 
   private void setupWindowListener(AtomicBoolean isClosed) {
@@ -898,9 +950,32 @@ public class Xtn5250TerminalEmulatorIT {
   public void shouldNotSetVisibleInputByLabelButtonWhenUsingCharacterBasedEmulator() {
     updateCharacterBasedWelcomeScreen();
     setupManualCharacterEmulator();
-    assertThat(Arrays.stream(frame.target().getComponents())
-        .filter(c -> c instanceof JButton)
-        .anyMatch(c -> c.getName().equals("labelButton")));
+    frame.robot().finder().find(xtn5250TerminalEmulator,
+        new ThemedIconMatcher() {
+          @Override
+          protected boolean isMatching(ThemedIconButton component) {
+            return component != null
+                && component.getName().equals("labelButton")
+                && !component.isVisible();
+          }
+        });
+  }
+
+  /*
+  Added in order to override the matching method, since hierarchy contains multiple 
+  Xtn5250TerminalEmulator frames (no reason found yet) all components are duplicated and is not 
+  possible to assert for the right one without this approach of overriding
+   */
+  private static class ThemedIconMatcher extends GenericTypeMatcher<ThemedIconButton> {
+
+    public ThemedIconMatcher() {
+      super(ThemedIconButton.class);
+    }
+
+    @Override
+    protected boolean isMatching(ThemedIconButton component) {
+      return false;
+    }
   }
 
   @Test
@@ -1016,7 +1091,7 @@ public class Xtn5250TerminalEmulatorIT {
   }
 
   @Test
-  public void shouldProperBuildMixedInputsWhenFirstPositionIsMiddleField() throws Exception {
+  public void shouldProperBuildMixedInputsWhenFirstPositionIsMiddleField() {
     setScreenWithUserNameAndPasswordFields();
     xtn5250TerminalEmulator.setCursor(2, 18);
     sendNavigationKey(KeyEvent.VK_TAB, 0);
@@ -1096,6 +1171,25 @@ public class Xtn5250TerminalEmulatorIT {
     sendKeyWithCursorUpdate(KeyEvent.VK_ENTER, 0, 2, 18);
     verify(listener).onAttentionKey(AttentionKey.ENTER,
         Collections.singletonList(buildCoordInput(2, 18)), "");
+  }
+
+  @Test
+  public void shouldDisplayErrorWhenMultiLineAreaForColorAssertion() {
+    setColoredScreen();
+    xtn5250TerminalEmulator.addTerminalEmulatorListener(listener);
+    selectArea(1, 1, 5, 2);
+    clickButton(COLOR_ASSERTION_BUTTON);
+    findOptionPane().requireMessage("Please select a single row to be used as color assertion");
+  }
+
+  private void setColoredScreen() {
+    GuiActionRunner.execute(() -> {
+      xtn5250TerminalEmulator.setScreenSize(COLUMNS, ROWS);
+      xtn5250TerminalEmulator.setScreen(buildColoredScreen());
+      xtn5250TerminalEmulator.setScreenName("COLORED TEST");
+    });
+    frame = new FrameFixture(xtn5250TerminalEmulator);
+    frame.show();
   }
 
 }

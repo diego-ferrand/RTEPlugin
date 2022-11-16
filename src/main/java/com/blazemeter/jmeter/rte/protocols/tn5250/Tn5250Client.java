@@ -8,6 +8,7 @@ import com.blazemeter.jmeter.rte.core.LabelInput;
 import com.blazemeter.jmeter.rte.core.NavigationInput;
 import com.blazemeter.jmeter.rte.core.Position;
 import com.blazemeter.jmeter.rte.core.Screen;
+import com.blazemeter.jmeter.rte.core.Segment.SegmentBuilder;
 import com.blazemeter.jmeter.rte.core.TerminalType;
 import com.blazemeter.jmeter.rte.core.exceptions.InvalidFieldLabelException;
 import com.blazemeter.jmeter.rte.core.exceptions.InvalidFieldPositionException;
@@ -46,7 +47,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeoutException;
 import javax.naming.OperationNotSupportedException;
 import net.infordata.em.TerminalClient;
-import net.infordata.em.crt5250.XI5250Field;
+import net.infordata.em.TerminalClient.Segment;
 import net.infordata.em.tn5250.XI5250EmulatorListener;
 
 public class Tn5250Client extends BaseProtocolClient {
@@ -95,7 +96,7 @@ public class Tn5250Client extends BaseProtocolClient {
       };
 
   private TerminalClient client;
-  private Map<TerminalStateListener, Tn5250TerminalStateListenerProxy> listenersProxies =
+  private final Map<TerminalStateListener, Tn5250TerminalStateListenerProxy> listenersProxies =
       new ConcurrentHashMap<>();
 
   @Override
@@ -273,31 +274,35 @@ public class Tn5250Client extends BaseProtocolClient {
 
   @Override
   public Screen getScreen() {
-    Dimension screenSize = client.getScreenDimensions();
-    Screen ret = new Screen(screenSize);
-    String screenText = client.getScreenText().replace("\n", "");
-    int textStartPos = 0;
-    for (XI5250Field f : client.getFields()) {
-      int fieldLinealPosition = getFieldLinealPosition(f, screenSize);
-      if (fieldLinealPosition > textStartPos) {
-        ret.addSegment(textStartPos, screenText.substring(textStartPos, fieldLinealPosition)
-        );
-      }
-      if ((SECRET_FIELD_MASK & f.getAttr()) != 0) {
-        ret.addSecretField(fieldLinealPosition, Screen.replaceTrailingSpacesByNull(f.getString()));
-      } else {
-        ret.addField(fieldLinealPosition, Screen.replaceTrailingSpacesByNull(f.getString()));
-      }
-      textStartPos = fieldLinealPosition + f.getString().length();
+    Dimension size = client.getScreenDimensions();
+    Screen screen = new Screen(size);
+    int lastLinealPosition = size.width * size.height;
+    int linealPosition = 0;
+    for (Segment s : client.getSegments()) {
+      addSegment(screen, linealPosition, s);
+      linealPosition += s.getString().length();
     }
-    if (textStartPos < screenText.length()) {
-      ret.addSegment(textStartPos, screenText.substring(textStartPos));
+    if (linealPosition < lastLinealPosition - 1) {
+      screen.fillScreenWithNullFrom(linealPosition);
     }
-    return ret;
+    return screen;
   }
 
-  private int getFieldLinealPosition(XI5250Field field, Dimension screenSize) {
-    return field.getRow() * screenSize.width + field.getCol();
+  private void addSegment(Screen screen, int linealPosition, Segment s) {
+    SegmentBuilder segment = new SegmentBuilder()
+        .withLinealPosition(linealPosition)
+        .withText(Screen.replaceTrailingSpacesByNull(s.getString()))
+        .withColor(s.getForegroundColor());
+    if (s.isEditable()) {
+      segment.withEditable();
+      if ((SECRET_FIELD_MASK & s.getAttr()) != 0) {
+        screen.addSegment(segment.withSecret());
+      } else {
+        screen.addSegment(segment);
+      }
+      return;
+    }
+    screen.addSegment(segment);
   }
 
   @Override

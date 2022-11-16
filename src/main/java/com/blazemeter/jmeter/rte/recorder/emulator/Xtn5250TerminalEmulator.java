@@ -1,6 +1,7 @@
 package com.blazemeter.jmeter.rte.recorder.emulator;
 
 import com.blazemeter.jmeter.rte.core.AttentionKey;
+import com.blazemeter.jmeter.rte.core.ColorUtils;
 import com.blazemeter.jmeter.rte.core.Position;
 import com.blazemeter.jmeter.rte.core.RteProtocolClient;
 import com.blazemeter.jmeter.rte.core.Screen;
@@ -54,6 +55,8 @@ public class Xtn5250TerminalEmulator extends JFrame implements TerminalEmulator 
       .createIconButton("labelButton", "inputByLabel.png");
   private final JButton assertionButton = SwingUtils
       .createIconButton("assertionButton", "assertion.png");
+  private final JButton colorAssertionButton = SwingUtils
+      .createIconButton("colorAssertionButton", "color-assertion.png");
   private final JLabel sampleNameLabel = new JLabel("Sample name: ");
   private final JTextField sampleNameField = SwingUtils
       .createComponent("sampleNameField", new JTextField());
@@ -152,6 +155,7 @@ public class Xtn5250TerminalEmulator extends JFrame implements TerminalEmulator 
         .addComponent(pasteButton)
         .addComponent(labelButton)
         .addComponent(waitForTextButton)
+        .addComponent(colorAssertionButton)
         .addComponent(assertionButton)
         .addPreferredGap(ComponentPlacement.RELATED)
         .addComponent(fillPanel, GroupLayout.PREFERRED_SIZE, GroupLayout.PREFERRED_SIZE,
@@ -166,6 +170,7 @@ public class Xtn5250TerminalEmulator extends JFrame implements TerminalEmulator 
         .addComponent(pasteButton)
         .addComponent(labelButton)
         .addComponent(waitForTextButton)
+        .addComponent(colorAssertionButton)
         .addComponent(assertionButton)
         .addComponent(fillPanel)
     );
@@ -315,9 +320,7 @@ public class Xtn5250TerminalEmulator extends JFrame implements TerminalEmulator 
           showUserMessage("No input fields found near to \"" + labelText + "\".");
           LOG.warn("No field was found after specified label {}", labelText);
         }
-
       }
-
       xi5250Crt.requestFocus();
       xi5250Crt.clearSelectedArea();
     });
@@ -339,7 +342,7 @@ public class Xtn5250TerminalEmulator extends JFrame implements TerminalEmulator 
     assertionButton.addActionListener(e -> {
       String selectedText = xi5250Crt.getStringSelectedArea();
       if (selectedText != null) {
-        String assertionName = requestAssertionName();
+        String assertionName = requestAssertionName("Response assertion");
         if (assertionName != null) {
           Pattern pattern = JMeterUtils
               .getPattern(Perl5Compiler.quotemeta(selectedText).replace("\\\n", ".*\\n.*"));
@@ -351,6 +354,40 @@ public class Xtn5250TerminalEmulator extends JFrame implements TerminalEmulator 
         }
       } else {
         warnUserOfNotScreenSelectedArea("assertion");
+      }
+      xi5250Crt.requestFocus();
+      xi5250Crt.clearSelectedArea();
+    });
+
+    colorAssertionButton.addActionListener(e -> {
+      String selectedText = xi5250Crt.getStringSelectedArea();
+      if (selectedText == null) {
+        showUserMessage("Please select a row to be used as color assertion");
+        return;
+      }
+
+      if (xi5250Crt.getSelectedArea().height > 1) {
+        showUserMessage("Please select a single row to be used as color assertion");
+        return;
+      }
+
+      String assertionName = requestAssertionName("Color assertion");
+      if (assertionName == null) {
+        showUserMessage("Please provide a name for the color assertion");
+        return;
+      }
+
+      int col = xi5250Crt.getSelectedArea().x;
+      int row = xi5250Crt.getSelectedArea().y;
+      int currentPositionAttr = xi5250Crt.getAttr(col, row);
+      Color colorAtPosition = xi5250Crt.getForegroundColor(currentPositionAttr);
+      if (colorAtPosition != null) {
+        for (TerminalEmulatorListener listener : terminalEmulatorListeners) {
+          listener.onColorAssertion(assertionName, ColorUtils.getHex(colorAtPosition),
+              col + 1, row + 1);
+        }
+      } else {
+        showUserMessage("No color was found at selected position");
       }
       xi5250Crt.requestFocus();
       xi5250Crt.clearSelectedArea();
@@ -376,8 +413,8 @@ public class Xtn5250TerminalEmulator extends JFrame implements TerminalEmulator 
     JOptionPane.showMessageDialog(this, msg, "Info", JOptionPane.INFORMATION_MESSAGE);
   }
 
-  private String requestAssertionName() {
-    return JOptionPane.showInputDialog(this, "Insert name of assertion", "Response Assertion");
+  private String requestAssertionName(String defaultName) {
+    return JOptionPane.showInputDialog(this, "Insert name of assertion", defaultName);
   }
 
   private void modificationSamplerListener() {

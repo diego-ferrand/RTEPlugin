@@ -10,6 +10,8 @@ import com.blazemeter.jmeter.rte.core.RteSampleResultBuilder;
 import com.blazemeter.jmeter.rte.core.Screen;
 import com.blazemeter.jmeter.rte.core.ServerDisconnectHandler;
 import com.blazemeter.jmeter.rte.core.TerminalType;
+import com.blazemeter.jmeter.rte.core.assertions.RTEAssertion;
+import com.blazemeter.jmeter.rte.core.assertions.RTEAssertionGui;
 import com.blazemeter.jmeter.rte.core.exceptions.RteIOException;
 import com.blazemeter.jmeter.rte.core.listener.ExceptionHandler;
 import com.blazemeter.jmeter.rte.core.listener.RequestListener;
@@ -434,6 +436,18 @@ public class RTERecorder extends GenericController implements TerminalEmulatorLi
     assertion.setToContainsType();
     assertion.addTestString(text);
     assertion.setAssumeSuccess(false);
+    responseAssertions.add(assertion);
+  }
+
+  @Override
+  public void onColorAssertion(String name, String color, int col, int row) {
+    RTEAssertion assertion = new RTEAssertion();
+    assertion.setName(name);
+    assertion.setColor(color);
+    assertion.setRow(String.valueOf(row));
+    assertion.setColumn(String.valueOf(col));
+    assertion.setProperty(TestElement.GUI_CLASS, RTEAssertionGui.class.getName());
+    assertion.setProperty(TestElement.TEST_CLASS, RTEAssertion.class.getName());
     responseAssertions.add(assertion);
   }
 

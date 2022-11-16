@@ -21,7 +21,7 @@ import com.blazemeter.jmeter.rte.core.Position;
 import com.blazemeter.jmeter.rte.core.Protocol;
 import com.blazemeter.jmeter.rte.core.RteProtocolClient;
 import com.blazemeter.jmeter.rte.core.RteSampleResultBuilder;
-import com.blazemeter.jmeter.rte.core.Screen;
+import com.blazemeter.jmeter.rte.core.ScreenTest;
 import com.blazemeter.jmeter.rte.core.TerminalType;
 import com.blazemeter.jmeter.rte.core.exceptions.RteIOException;
 import com.blazemeter.jmeter.rte.core.ssl.SSLType;
@@ -62,7 +62,7 @@ public class RTESamplerTest {
   @Mock
   private RteProtocolClient client;
   private RTESampler rteSampler;
-  private ConfigTestElement configTestElement = new ConfigTestElement();
+  private final ConfigTestElement configTestElement = new ConfigTestElement();
 
   @BeforeClass
   public static void setupClass() {
@@ -80,7 +80,7 @@ public class RTESamplerTest {
   public void setup() {
     rteSampler = new RTESampler(p -> client);
     when(client.isInputInhibited()).thenReturn(Optional.of(true));
-    when(client.getScreen()).thenReturn(Screen.valueOf(TEST_SCREEN));
+    when(client.getScreen()).thenReturn(ScreenTest.screenFromUnnormalizedText(TEST_SCREEN));
     when(client.resetAlarm()).thenReturn(false);
     when(client.getCursorPosition()).thenReturn(Optional.of(CURSOR_POSITION));
     buildDefaultRTEConfig();

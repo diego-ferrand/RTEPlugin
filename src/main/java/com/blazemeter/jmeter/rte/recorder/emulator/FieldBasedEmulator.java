@@ -17,6 +17,10 @@ public class FieldBasedEmulator extends XI5250CrtBase {
   private int initialColumn;
   private int initialRow;
 
+  public FieldBasedEmulator() {
+    attributeTranslator = new AttributeTranslator(getCrtBuffer());
+  }
+
   @Override
   public void setKeyboardLock(boolean lock) {
     locked = lock;

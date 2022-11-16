@@ -1,9 +1,9 @@
 package com.blazemeter.jmeter.rte.protocols;
 
+import com.blazemeter.jmeter.rte.core.Segment;
 import com.blazemeter.jmeter.rte.core.ServerDisconnectHandler;
 import com.blazemeter.jmeter.rte.core.RteProtocolClient;
 import com.blazemeter.jmeter.rte.core.Screen;
-import com.blazemeter.jmeter.rte.core.Screen.Segment;
 import com.blazemeter.jmeter.rte.core.TerminalType;
 import com.blazemeter.jmeter.rte.core.exceptions.ConnectionClosedException;
 import com.blazemeter.jmeter.rte.core.listener.ExceptionHandler;
@@ -12,6 +12,7 @@ import com.blazemeter.jmeter.rte.core.wait.SyncWaitCondition;
 import com.blazemeter.jmeter.rte.protocols.tn5250.Tn5250ClientIT;
 import com.google.common.base.Charsets;
 import com.google.common.io.Resources;
+import java.awt.Color;
 import java.awt.Dimension;
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -115,5 +116,8 @@ public abstract class RteProtocolClientIT<T extends RteProtocolClient> {
 
   protected abstract List<Segment> buildExpectedFields();
 
+  protected Segment.SegmentBuilder editableSegment() {
+    return new Segment.SegmentBuilder().withEditable().withColor(Color.BLACK);
+  }
 
 }

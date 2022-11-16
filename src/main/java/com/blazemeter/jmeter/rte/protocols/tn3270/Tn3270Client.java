@@ -8,6 +8,7 @@ import com.blazemeter.jmeter.rte.core.LabelInput;
 import com.blazemeter.jmeter.rte.core.NavigationInput;
 import com.blazemeter.jmeter.rte.core.Position;
 import com.blazemeter.jmeter.rte.core.Screen;
+import com.blazemeter.jmeter.rte.core.Segment.SegmentBuilder;
 import com.blazemeter.jmeter.rte.core.TerminalType;
 import com.blazemeter.jmeter.rte.core.exceptions.InvalidFieldLabelException;
 import com.blazemeter.jmeter.rte.core.exceptions.InvalidFieldPositionException;
@@ -51,8 +52,8 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeoutException;
-import java.util.stream.Collectors;
 import javax.naming.OperationNotSupportedException;
+import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -290,46 +291,51 @@ public class Tn3270Client extends BaseProtocolClient {
   @Override
   public Screen getScreen() {
     List<Field> fields = client.getFields();
-    Dimension size = getScreenSize();
-    Screen screen = new Screen(size);
     String screenText = client.getScreenText().replace("\n", "");
     if (fields.isEmpty()) {
       return buildScreenFromText(screenText);
     }
+    return buildScreenFromFields(fields);
+  }
+
+  private Screen buildScreenFromFields(List<Field> fields) {
+    Dimension size = getScreenSize();
+    Screen screen = new Screen(size);
+    int lastLinealPosition = size.width * size.height;
     Field lastField = fields.get(fields.size() - 1);
     int linealPosition =
         lastField.isCircular() ? (lastField.getFirstLocation() + lastField.getDisplayLength()) % (
-            size.width * size.height) : 0;
-    List<Field> unProtectedFields = fields.stream().filter(Field::isUnprotected)
-        .collect(Collectors.toList());
-    for (Field field : unProtectedFields) {
-      // FirstLocation is the first location of text not counting the position consumed by 
-      // field attributes. First location can be 0 when last empty field of screen.
-      if (field.getFirstLocation() != 0 && field.getFirstLocation() - 1 != linealPosition) {
-        String chunk = getChunkOfScreenFrom(screenText, linealPosition,
-            field.getFirstLocation() - 1);
-        screen.addSegment(linealPosition, chunk);
-        linealPosition += chunk.length();
-      }
-      screen.addSegment(linealPosition, " ");
-      addFieldToScreen(screen, linealPosition, field);
-      linealPosition += field.getText().length() + 1;
-
+            lastLinealPosition) : 0;
+    for (Field f : fields) {
+      addSegment(screen, lastLinealPosition, linealPosition, f);
+      linealPosition += f.getText().length() + 1;
     }
-    if (linealPosition < size.width * size.height) {
-      String chunk = getChunkOfScreenFrom(screenText, linealPosition, size.height * size.width);
-      screen.addSegment(linealPosition, chunk);
+    if (linealPosition < lastLinealPosition - 1) {
+      screen.fillScreenWithNullFrom(linealPosition);
     }
     return screen;
   }
 
-  private void addFieldToScreen(Screen screen, int linealPosition, Field field) {
-    if (!field.getText().isEmpty()) {
-      if (field.isHidden()) {
-        screen.addSecretField(linealPosition + 1,
-            Screen.replaceTrailingSpacesByNull(field.getText()));
-      } else {
-        screen.addField(linealPosition + 1, Screen.replaceTrailingSpacesByNull(field.getText()));
+  private void addSegment(Screen screen, int lastLinealPosition, int linealPosition, Field f) {
+    String text = f.isVisible() ? Screen.replaceTrailingSpacesByNull(f.getText())
+        : StringUtils.repeat('\u0000', f.getDisplayLength());
+    SegmentBuilder segment = new SegmentBuilder()
+        .withColor(f.getColor())
+        .withLinealPosition(linealPosition);
+    if (f.isProtected()) {
+      screen.addSegment(segment.withText(" " + text));
+    } else {
+      screen.addSegment(segment.withText(" ").withColor(Screen.DEFAULT_COLOR));
+      if (linealPosition + 1 < lastLinealPosition) {
+        segment.withLinealPosition(linealPosition + 1)
+            .withEditable()
+            .withText(text)
+            .withColor(f.getColor());
+        if (f.isHidden()) {
+          screen.addSegment(segment.withSecret());
+        } else {
+          screen.addSegment(segment);
+        }
       }
     }
   }
@@ -341,25 +347,24 @@ public class Tn3270Client extends BaseProtocolClient {
         || screenText.charAt(lastNonBlankPosition) == '\u0000')) {
       lastNonBlankPosition--;
     }
+    SegmentBuilder segmentBuilder = new SegmentBuilder()
+        .withLinealPosition(0)
+        .withText(screenText)
+        .withColor(Screen.DEFAULT_COLOR);
     int segmentEndPosition = lastNonBlankPosition + 1;
     if (segmentEndPosition <= 0) {
-      ret.addField(0, screenText);
+      ret.addSegment(segmentBuilder.withEditable());
     } else if (segmentEndPosition >= screenText.length()) {
-      ret.addSegment(0, screenText);
+      ret.addSegment(segmentBuilder);
     } else {
-      ret.addSegment(0, screenText.substring(0, segmentEndPosition + 1));
-      ret.addField(segmentEndPosition + 1, screenText.substring(segmentEndPosition + 1));
+      ret.addSegment(segmentBuilder
+          .withText(screenText.substring(0, segmentEndPosition + 1)));
+      ret.addSegment(segmentBuilder
+          .withLinealPosition(
+              segmentEndPosition + 1)
+          .withText(screenText.substring(segmentEndPosition + 1)).withEditable());
     }
     return ret;
-  }
-
-  private String getChunkOfScreenFrom(String screen, int segmentBegin,
-      int segmentEnd) {
-    StringBuilder sb = new StringBuilder();
-    for (int i = segmentBegin; i < segmentEnd; i++) {
-      sb.append(screen.charAt(i));
-    }
-    return sb.toString();
   }
 
   public Dimension getScreenSize() {

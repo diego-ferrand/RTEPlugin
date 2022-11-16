@@ -13,8 +13,8 @@ import com.blazemeter.jmeter.rte.core.LabelInput;
 import com.blazemeter.jmeter.rte.core.NavigationInput;
 import com.blazemeter.jmeter.rte.core.Position;
 import com.blazemeter.jmeter.rte.core.Screen;
-import com.blazemeter.jmeter.rte.core.Screen.Segment;
-import com.blazemeter.jmeter.rte.core.Screen.Segment.SegmentBuilder;
+import com.blazemeter.jmeter.rte.core.Segment;
+import com.blazemeter.jmeter.rte.core.Segment.SegmentBuilder;
 import com.blazemeter.jmeter.rte.core.TerminalType;
 import com.blazemeter.jmeter.rte.core.exceptions.InvalidFieldLabelException;
 import com.blazemeter.jmeter.rte.core.exceptions.InvalidFieldPositionException;
@@ -61,17 +61,22 @@ public class Tn5250ClientIT extends RteProtocolClientIT<Tn5250Client> {
   @Override
   protected List<Segment> buildExpectedFields() {
     return Arrays.asList(
-        new SegmentBuilder().withPosition(6, 53).withText(buildBlankSpaces())
-            .withEditable().build(SCREEN_SIZE),
-        new SegmentBuilder().withPosition(7, 53).withText(buildBlankSpaces())
-            .withEditable().withSecret().build(SCREEN_SIZE),
-        new SegmentBuilder().withPosition(8, 53).withText(buildBlankSpaces())
-            .withEditable().build(SCREEN_SIZE),
-        new SegmentBuilder().withPosition(9, 53).withText(buildBlankSpaces())
-            .withEditable().build(SCREEN_SIZE),
-        new SegmentBuilder().withPosition(10, 53).withText(buildBlankSpaces())
-            .withEditable().build(SCREEN_SIZE)
+        editableSegment().withPosition(6, 53).withText(buildBlankSpaces())
+            .build(SCREEN_SIZE),
+        super.editableSegment().withPosition(7, 53).withText(buildBlankSpaces())
+            .withSecret().build(SCREEN_SIZE),
+        editableSegment().withPosition(8, 53).withText(buildBlankSpaces())
+            .build(SCREEN_SIZE),
+        editableSegment().withPosition(9, 53).withText(buildBlankSpaces())
+            .build(SCREEN_SIZE),
+        editableSegment().withPosition(10, 53).withText(buildBlankSpaces())
+            .build(SCREEN_SIZE)
     );
+  }
+
+  @Override
+  protected SegmentBuilder editableSegment() {
+    return super.editableSegment().withColor(Screen.DEFAULT_COLOR);
   }
 
   private String buildBlankSpaces() {

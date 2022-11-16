@@ -2,9 +2,9 @@ package com.blazemeter.jmeter.rte.core;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.blazemeter.jmeter.rte.core.Screen.Segment;
 import com.google.common.base.Charsets;
 import com.google.common.io.Resources;
+import java.awt.Color;
 import java.awt.Dimension;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -32,7 +32,7 @@ public class ScreenTest {
   @Test
   public void shouldSplitRowWhenGetTextWithSegmentWithLengthBiggerThanScreenWidth() {
     Screen screen = buildScreen();
-    screen.addSegment(0, WHITESPACES_FILLED_ROW + WHITESPACES_FILLED_ROW);
+    addSegment(screen, 0, WHITESPACES_FILLED_ROW + WHITESPACES_FILLED_ROW);
     assertThat(screen.getText())
         .isEqualTo(WHITESPACES_FILLED_ROW + "\n" + WHITESPACES_FILLED_ROW + "\n");
   }
@@ -41,20 +41,27 @@ public class ScreenTest {
   public void shouldSplitRowWhenGetTextWithFinalSegmentPositionGreaterThanScreenWidth() {
     Screen screen = buildScreen();
     int offset = 3;
-    screen.addSegment(0, StringUtils.repeat(' ', offset));
-    screen.addSegment(offset, WHITESPACES_FILLED_ROW);
-    screen.addSegment(offset, StringUtils.repeat(' ', SCREEN_WIDTH - offset));
+    addSegment(screen, 0, StringUtils.repeat(' ', offset));
+    addSegment(screen, offset, WHITESPACES_FILLED_ROW);
+    addSegment(screen, offset, StringUtils.repeat(' ', SCREEN_WIDTH - offset));
     assertThat(screen.getText())
         .isEqualTo(WHITESPACES_FILLED_ROW + "\n" + WHITESPACES_FILLED_ROW + "\n");
+  }
+
+  private void addSegment(Screen screen, int i, String repeat) {
+    screen.addSegment(new Segment.SegmentBuilder()
+        .withLinealPosition(i)
+        .withText(repeat)
+        .withColor(Screen.DEFAULT_COLOR));
   }
 
   @Test
   public void shouldGetScreenTextWithAddedFieldsAndSegmentsWhenGetText() {
     Screen screen = new Screen(new Dimension(SCREEN_WIDTH * 3, SCREEN_HEIGHT));
     String segmentText = "Name: ";
-    screen.addSegment(0, segmentText);
+    addSegment(screen, 0, segmentText);
     String fieldText = "TESTUSR";
-    screen.addField(segmentText.length(), fieldText);
+    addField(screen, segmentText.length(), fieldText);
     assertThat(screen.getText())
         .isEqualTo(buildExpectedString(segmentText + fieldText, SCREEN_WIDTH * 3, SCREEN_HEIGHT));
 
@@ -76,7 +83,7 @@ public class ScreenTest {
   @Test
   public void shouldGetScreenTextWithInvisibleCharactersAsSpacesWhenGetText() {
     Screen screen = buildScreen();
-    screen.addSegment(0, "T\u0000est");
+    addSegment(screen, 0, "T\u0000est");
     assertThat(screen.getText()).isEqualTo(
         buildExpectedString("T est", screen.getSize().width, screen.getSize().height));
   }
@@ -84,29 +91,33 @@ public class ScreenTest {
   @Test
   public void shouldGetAddedFieldsAndSegmentsWhenGetSegments() {
     Screen screen = new Screen(new Dimension(SCREEN_WIDTH * 2, SCREEN_HEIGHT));
-    screen.addSegment(0, S1_LITERAL + ": ");
-    screen.addField(4, F1_LITERAL);
-    screen.addSegment(SCREEN_WIDTH * 2, S2_LITERAL + ": ");
-    screen.addField(SCREEN_WIDTH * 2 + 4, F2_LITERAL);
+    addSegment(screen, 0, S1_LITERAL + ": ");
+    addField(screen, 4, F1_LITERAL);
+    addSegment(screen, SCREEN_WIDTH * 2, S2_LITERAL + ": ");
+    addField(screen, SCREEN_WIDTH * 2 + 4, F2_LITERAL);
 
     List<Segment> expectedSegments = new ArrayList<>(
         Arrays.asList(
             new Segment.SegmentBuilder()
                 .withPosition(1, 1)
                 .withText(S1_LITERAL + ": ")
+                .withColor(Color.GREEN)
                 .build(SCREEN_DIMENSION),
             new Segment.SegmentBuilder()
                 .withPosition(1, 5)
                 .withText(F1_LITERAL)
+                .withColor(Color.BLACK)
                 .withEditable()
                 .build(SCREEN_DIMENSION),
             new Segment.SegmentBuilder()
                 .withPosition(2, 1)
                 .withText(S2_LITERAL + ": ")
+                .withColor(Color.GREEN)
                 .build(SCREEN_DIMENSION),
             new Segment.SegmentBuilder()
                 .withPosition(2, 5)
                 .withText(F2_LITERAL)
+                .withColor(Color.BLACK)
                 .withEditable()
                 .build(SCREEN_DIMENSION)
         )
@@ -115,24 +126,47 @@ public class ScreenTest {
     assertThat(screen.getSegments()).isEqualTo(expectedSegments);
   }
 
+  private void addField(Screen screen, int linealPosition, String f1Literal) {
+    screen.addSegment(new Segment.SegmentBuilder()
+        .withText(f1Literal)
+        .withLinealPosition(linealPosition)
+        .withColor(Color.BLACK)
+        .withEditable());
+  }
+
   @Test
   public void shouldGetScreenWithInvisibleCharsAsSpacesWhenWithInvisibleCharsAsSpaces() {
     Screen screen = buildScreen();
-    screen.addSegment(0, "T\u0000est");
+    addSegment(screen, 0, "T\u0000est");
 
     Screen expectedScreen = buildScreen();
-    expectedScreen.addSegment(0, "T est");
+    addSegment(expectedScreen, 0, "T est");
     assertThat(screen.withInvisibleCharsToSpaces()).isEqualTo(expectedScreen);
   }
 
   @Test
   public void shouldGetScreenWithTwoRowsWhenValueOfWithOneEnter() {
-    assertThat(Screen.valueOf("Row1\nRow2").getText()).isEqualTo("Row1\nRow2\n");
+    assertThat(screenFromUnnormalizedText("Row1\nRow2").getText()).isEqualTo("Row1\nRow2\n");
+  }
+
+  public static Screen screenFromUnnormalizedText(String screen) {
+    int width = screen.indexOf('\n');
+    int height = screen.length() / (width + 1);
+    Screen ret = new Screen(new Dimension(width, height));
+    int pos = 0;
+    for (String part : screen.split("\n")) {
+      ret.addSegment(new Segment.SegmentBuilder()
+          .withLinealPosition(pos)
+          .withText(part)
+          .withColor(Screen.DEFAULT_COLOR));
+      pos += width;
+    }
+    return ret;
   }
 
   @Test(expected = ArithmeticException.class)
   public void shouldThrowArithmeticExceptionWhenValueOfStringWithoutEnter() {
-    Screen.valueOf("Row1");
+    screenFromUnnormalizedText("Row1");
   }
 
   @Test
@@ -155,8 +189,8 @@ public class ScreenTest {
   private Screen buildHtmlTestScreenForUser(String user) {
     Screen expectedScreen = new Screen(new Dimension(10, 2));
     String initialSegmentText = "  Welcome User: ";
-    expectedScreen.addSegment(0, initialSegmentText);
-    expectedScreen.addField(initialSegmentText.length(), "USR ");
+    addSegment(expectedScreen, 0, initialSegmentText);
+    addField(expectedScreen, initialSegmentText.length(), "USR ");
     return expectedScreen;
   }
 

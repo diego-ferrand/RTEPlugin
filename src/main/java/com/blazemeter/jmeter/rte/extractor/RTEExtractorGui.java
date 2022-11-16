@@ -7,7 +7,7 @@ import org.apache.jmeter.testelement.TestElement;
 
 public class RTEExtractorGui extends AbstractPostProcessorGui {
 
-  private RTEExtractorPanel extractorPanel;
+  private final RTEExtractorPanel extractorPanel;
 
   public RTEExtractorGui() {
     extractorPanel = new RTEExtractorPanel();
@@ -20,7 +20,7 @@ public class RTEExtractorGui extends AbstractPostProcessorGui {
 
   @Override
   public String getStaticLabel() {
-    return "bzm - RTE Position Extractor";
+    return "bzm - RTE Extractor";
   }
 
   @Override
@@ -33,12 +33,11 @@ public class RTEExtractorGui extends AbstractPostProcessorGui {
     super.configure(testElement);
     if (testElement instanceof RTEExtractor) {
       RTEExtractor rteExtractor = (RTEExtractor) testElement;
-
       extractorPanel.setVariablePrefix(rteExtractor.getVariablePrefix());
       extractorPanel.setRow(String.valueOf(rteExtractor.getRow()));
       extractorPanel.setColumn(String.valueOf(rteExtractor.getColumn()));
       extractorPanel.setOffset(String.valueOf(rteExtractor.getOffset()));
-      extractorPanel.setPositionType(rteExtractor.getPositionType());
+      extractorPanel.setExtractionType(rteExtractor.getExtractionType());
     }
   }
 
@@ -54,12 +53,11 @@ public class RTEExtractorGui extends AbstractPostProcessorGui {
     configureTestElement(testElement);
     if (testElement instanceof RTEExtractor) {
       RTEExtractor rteExtractor = (RTEExtractor) testElement;
-
       rteExtractor.setVariablePrefix(extractorPanel.getVariablePrefix());
       rteExtractor.setRow(extractorPanel.getRow());
       rteExtractor.setColumn(extractorPanel.getColumn());
       rteExtractor.setOffset(extractorPanel.getOffset());
-      rteExtractor.setPositionType(extractorPanel.getPositionType());
+      rteExtractor.setExtractionType(extractorPanel.getExtractionType());
     }
 
   }
@@ -67,7 +65,7 @@ public class RTEExtractorGui extends AbstractPostProcessorGui {
   @Override
   public void clearGui() {
     super.clearGui();
-    extractorPanel.setPositionType(PositionType.CURSOR_POSITION);
+    extractorPanel.setExtractionType(ExtractionType.NEXT_FIELD_POSITION);
     extractorPanel.setVariablePrefix("");
     extractorPanel.setRow("");
     extractorPanel.setColumn("");

@@ -8,6 +8,7 @@ import java.awt.event.ActionListener;
 import javax.swing.JButton;
 import javax.swing.JComponent;
 import javax.swing.JLabel;
+import javax.swing.text.JTextComponent;
 import org.apache.jmeter.util.JMeterUtils;
 
 public class SwingUtils {
@@ -44,4 +45,16 @@ public class SwingUtils {
     warningLabel.setFont(warningLabel.getFont().deriveFont(Font.ITALIC, 11));
     return warningLabel;
   }
+
+  public static void clearRecursively(Component component) {
+    if (component instanceof JTextComponent) {
+      ((JTextComponent) component).setText("");
+    }
+    if (component instanceof Container) {
+      for (Component child : ((Container) component).getComponents()) {
+        clearRecursively(child);
+      }
+    }
+  }
+
 }

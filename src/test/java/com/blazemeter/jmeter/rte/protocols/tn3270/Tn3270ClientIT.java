@@ -13,8 +13,8 @@ import com.blazemeter.jmeter.rte.core.LabelInput;
 import com.blazemeter.jmeter.rte.core.NavigationInput;
 import com.blazemeter.jmeter.rte.core.Position;
 import com.blazemeter.jmeter.rte.core.Screen;
-import com.blazemeter.jmeter.rte.core.Screen.Segment;
-import com.blazemeter.jmeter.rte.core.Screen.Segment.SegmentBuilder;
+import com.blazemeter.jmeter.rte.core.Segment;
+import com.blazemeter.jmeter.rte.core.Segment.SegmentBuilder;
 import com.blazemeter.jmeter.rte.core.TerminalType;
 import com.blazemeter.jmeter.rte.core.exceptions.InvalidFieldLabelException;
 import com.blazemeter.jmeter.rte.core.exceptions.InvalidFieldPositionException;
@@ -31,6 +31,7 @@ import com.blazemeter.jmeter.rte.core.wait.TextWaitCondition;
 import com.blazemeter.jmeter.rte.core.wait.WaitCondition;
 import com.blazemeter.jmeter.rte.protocols.RteProtocolClientIT;
 import com.blazemeter.jmeter.rte.sampler.NavigationType;
+import java.awt.Color;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.Arrays;
@@ -46,6 +47,7 @@ public class Tn3270ClientIT extends RteProtocolClientIT<Tn3270Client> {
 
   private static final String USERNAME = "testusr";
   private static final String TESTPSW_LITERAL = "TESTPSW";
+  private static final String NULL_LITERAL = "\u0000";
 
   @Override
   protected Tn3270Client buildClient() {
@@ -60,33 +62,28 @@ public class Tn3270ClientIT extends RteProtocolClientIT<Tn3270Client> {
   @Override
   protected List<Segment> buildExpectedFields() {
     return Arrays.asList(
-        new SegmentBuilder().withPosition(8, 20).withText(buildNullStr(8)).withEditable()
-            .withSecret().build(SCREEN_SIZE),
-        new SegmentBuilder().withPosition(8, 71).withText(buildNullStr(8)).withEditable()
-            .withSecret().build(SCREEN_SIZE),
-        new SegmentBuilder().withPosition(10, 20).withText("PROC394\u0000").withEditable()
+        editableSegment().withPosition(8, 20).withText(buildNullStr(8)).withSecret()
+            .withColor(Screen.DEFAULT_COLOR).build(SCREEN_SIZE),
+        editableSegment().withPosition(8, 71).withText(buildNullStr(8)).withSecret()
+            .withColor(Screen.DEFAULT_COLOR).build(SCREEN_SIZE),
+        editableSegment().withPosition(10, 20).withText("PROC394" + NULL_LITERAL)
             .build(SCREEN_SIZE),
-        new SegmentBuilder().withPosition(10, 71).withText(buildNullStr(8)).withEditable()
+        editableSegment().withPosition(10, 71).withText(buildNullStr(8)).build(SCREEN_SIZE),
+        editableSegment().withPosition(12, 20).withText("1000000" + buildNullStr(33))
             .build(SCREEN_SIZE),
-        new SegmentBuilder().withPosition(12, 20).withText("1000000" + buildNullStr(33))
-            .withEditable().build(SCREEN_SIZE),
-        new SegmentBuilder().withPosition(14, 20).withText("4096" + buildNullStr(3)).withEditable()
+        editableSegment().withPosition(14, 20).withText("4096" + buildNullStr(3))
             .build(SCREEN_SIZE),
-        new SegmentBuilder().withPosition(16, 20).withText(buildNullStr(3)).withEditable()
-            .build(SCREEN_SIZE),
-        new SegmentBuilder().withPosition(18, 20).withText(buildNullStr(80)).withEditable()
-            .build(SCREEN_SIZE),
-        new SegmentBuilder().withPosition(21, 11).withText("\u0000").withEditable()
-            .build(SCREEN_SIZE),
-        new SegmentBuilder().withPosition(21, 27).withText("\u0000").withEditable()
-            .build(SCREEN_SIZE),
-        new SegmentBuilder().withPosition(21, 44).withText("\u0000").withEditable()
-            .build(SCREEN_SIZE),
-        new SegmentBuilder().withPosition(21, 62).withText("\u0000").withEditable()
-            .build(SCREEN_SIZE)
+        editableSegment().withPosition(16, 20).withText(buildNullStr(3)).build(SCREEN_SIZE),
+        editableSegment().withPosition(18, 20).withText(buildNullStr(80)).build(SCREEN_SIZE),
+        editableSegment().withPosition(21, 11).withText(NULL_LITERAL).build(SCREEN_SIZE),
+        editableSegment().withPosition(21, 27).withText(NULL_LITERAL).build(SCREEN_SIZE),
+        editableSegment().withPosition(21, 44).withText(NULL_LITERAL).build(SCREEN_SIZE),
+        editableSegment().withPosition(21, 62).withText(NULL_LITERAL).build(SCREEN_SIZE));
+  }
 
-    );
-
+  @Override
+  protected SegmentBuilder editableSegment() {
+    return super.editableSegment().withColor(Color.RED);
   }
 
   private String buildNullStr(int nulls) {

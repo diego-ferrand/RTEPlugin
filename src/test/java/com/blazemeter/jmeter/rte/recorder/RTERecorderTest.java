@@ -25,6 +25,7 @@ import com.blazemeter.jmeter.rte.core.Protocol;
 import com.blazemeter.jmeter.rte.core.RteProtocolClient;
 import com.blazemeter.jmeter.rte.core.RteSampleResultBuilder;
 import com.blazemeter.jmeter.rte.core.Screen;
+import com.blazemeter.jmeter.rte.core.ScreenTest;
 import com.blazemeter.jmeter.rte.core.TerminalType;
 import com.blazemeter.jmeter.rte.core.exceptions.RteIOException;
 import com.blazemeter.jmeter.rte.core.listener.RequestListener;
@@ -70,7 +71,7 @@ public class RTERecorderTest {
   public static final String SENDING_USER = "SENDING_USER";
   private static final String ASSERTION_NAME = "Assertion Test";
   private static final String SELECTED_TEXT = "selected text";
-  private static final Screen TEST_SCREEN = Screen.valueOf("test\n");
+  private static final Screen TEST_SCREEN = ScreenTest.screenFromUnnormalizedText("test\n");
   private static final String SERVER = "localhost";
   private static final RteIOException RTE_IO_EXCEPTION = new RteIOException(null, SERVER);
   private static final int PORT = 80;
@@ -707,6 +708,23 @@ public class RTERecorderTest {
 
     assertThat(argument.getValue())
         .isEqualTo(buildExpectedDisconnectionSampler());
+  }
+
+  @Test
+  public void shouldAddColorAssertionAsChildOfPendingSamplerWhenOnColorAssertion()
+      throws Exception {
+    connect();
+    rteRecorder.onAssertionScreen(ASSERTION_NAME, SELECTED_TEXT);
+    rteRecorder.onAttentionKey(AttentionKey.ENTER, new ArrayList<>(), "");
+
+    rteRecorder.onRecordingStop();
+
+    ArgumentCaptor<ResponseAssertion> argumentCaptor = ArgumentCaptor
+        .forClass(ResponseAssertion.class);
+
+    verify(treeModel).addComponent(argumentCaptor.capture(), eq(samplerNode));
+    assertThat(argumentCaptor.getValue())
+        .isEqualTo(buildExpectedAssertion());
   }
 
 }

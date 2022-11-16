@@ -5,8 +5,9 @@ import com.blazemeter.jmeter.rte.core.Input;
 import com.blazemeter.jmeter.rte.core.Position;
 import com.blazemeter.jmeter.rte.core.RteProtocolClient;
 import com.blazemeter.jmeter.rte.core.Screen;
-import com.blazemeter.jmeter.rte.core.Screen.Segment;
+import com.blazemeter.jmeter.rte.core.Segment;
 import com.blazemeter.jmeter.rte.recorder.emulator.Xtn5250TerminalEmulator.ScreenField;
+import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Graphics;
 import java.awt.Toolkit;
@@ -18,6 +19,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.Consumer;
 import javax.swing.JOptionPane;
+import net.infordata.em.crt.XICrtBuffer;
 import net.infordata.em.crt5250.XI5250Crt;
 import net.infordata.em.crt5250.XI5250Field;
 import org.slf4j.Logger;
@@ -26,6 +28,7 @@ import org.slf4j.LoggerFactory;
 public abstract class XI5250CrtBase<T extends RteProtocolClient> extends XI5250Crt {
 
   public static final int DEFAULT_ATTR = 32;
+  public static final int SECRET_CREDENTIAL_ATTR = 39;
   protected static final Map<KeyEventMap, AttentionKey> KEY_EVENTS =
       new HashMap<KeyEventMap, AttentionKey>() {
         {
@@ -70,7 +73,6 @@ public abstract class XI5250CrtBase<T extends RteProtocolClient> extends XI5250C
           put(new KeyEventMap(KeyEvent.SHIFT_MASK, KeyEvent.VK_PAGE_UP), AttentionKey.PA3);
         }
       };
-  private static final int SECRET_CREDENTIAL_ATTR = 39;
   private static final Logger LOG = LoggerFactory.getLogger(XI5250CrtBase.class);
   protected Map<Position, String> labelMap = new HashMap<>();
   protected T terminalClient;
@@ -78,6 +80,7 @@ public abstract class XI5250CrtBase<T extends RteProtocolClient> extends XI5250C
   protected boolean locked = false;
   protected boolean copyPaste = false;
   protected Consumer<Boolean> pasteConsumer;
+  protected AttributeTranslator attributeTranslator;
   private List<TerminalEmulatorListener> terminalEmulatorListeners;
   private String sampleName = "";
   private Set<AttentionKey> supportedAttentionKeys;
@@ -238,8 +241,9 @@ public abstract class XI5250CrtBase<T extends RteProtocolClient> extends XI5250C
       int row = s.getStartPosition().getRow() - 1;
       int column = s.getStartPosition().getColumn() - 1;
       if (s.isEditable()) {
-        int attr =
-            !isShowCredential && s.isSecret() ? SECRET_CREDENTIAL_ATTR : DEFAULT_ATTR;
+        int attr = !isShowCredential && s.isSecret()
+            ? SECRET_CREDENTIAL_ATTR
+            : attributeTranslator.calculateAttrFrom(s);
         drawString("\u0001", column - 1, row, attr);
         if (isCircularSegment(s)) {
           processCircularField(s, screenSize, attr);
@@ -253,8 +257,9 @@ public abstract class XI5250CrtBase<T extends RteProtocolClient> extends XI5250C
 
         addField(xi5250Field);
       } else {
+        int attr = attributeTranslator.calculateAttrFrom(s);
         drawString(s.getText(), column,
-            row, DEFAULT_ATTR);
+            row, attr);
       }
     }
     this.initAllFields();
@@ -327,5 +332,40 @@ public abstract class XI5250CrtBase<T extends RteProtocolClient> extends XI5250C
       super(aCrt, aCol, aRow, aLen, aAttr);
     }
 
+  }
+
+  protected static class AttributeTranslator {
+
+    private final Color[][] ivForegroundColorsMap;
+
+    public AttributeTranslator(XICrtBuffer crtBuffer) {
+      ivForegroundColorsMap = crtBuffer.getIvForegroundColorsMap();
+    }
+
+    public int calculateAttrFrom(Segment segment) {
+      int index = getColorIndexInXtn5250Palette(segment.getColor());
+      return DEFAULT_ATTR + index;
+    }
+
+    /*
+    From a given color it will look for a similar color in the xtn5250 palette and retrieve the 
+    index of it.
+     */
+    private int getColorIndexInXtn5250Palette(Color segmentColor) {
+      int idxBest = 0;
+      int bestDistance = Integer.MAX_VALUE;
+      Color[] colors = ivForegroundColorsMap[0];
+      for (int i = 0; i < colors.length; i++) {
+        int currentDistance =
+            Math.abs(colors[i].getRed() - segmentColor.getRed()) + Math.abs(
+                colors[i].getBlue() - segmentColor.getBlue()) + Math.abs(
+                colors[i].getGreen() - segmentColor.getGreen());
+        if (currentDistance < bestDistance) {
+          bestDistance = currentDistance;
+          idxBest = i;
+        }
+      }
+      return idxBest;
+    }
   }
 }

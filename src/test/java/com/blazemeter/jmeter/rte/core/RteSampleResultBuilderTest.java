@@ -19,12 +19,14 @@ import org.mockito.junit.MockitoJUnitRunner;
 @RunWith(MockitoJUnitRunner.class)
 public class RteSampleResultBuilderTest {
 
-  public static final String FIELD_POSITION_TEXT = "Field-positions: [(1,1)-(1,20)]" + "\n";
-  public static final String SOUNDED_ALARM_TEXT = "Sound-Alarm: true" + "\n";
+  public static final String FIELD_POSITION = "Field-positions: [(1,1)-(1,20)]";
+  public static final String EMPTY_FIELD_POSITION = "Field-positions: ";
+  public static final String SOUNDED_ALARM = "Sound-Alarm: true";
+  public static final String NOT_SOUNDED_ALARM = "Sound-Alarm: false";
   public static final Dimension SCREEN_SIZE = new Dimension(30, 1);
   private static final Position CURSOR_POSITION = new Position(1, 1);
-  private static final String EXPECTED_HEADERS_RESPONSE = "Input-inhibited: true\n" +
-      "Cursor-position: (1,1)" + '\n';
+  private static final String CURSOR_POSITION_HEADER = "Cursor-position: (1,1)";
+  private static final String INPUT_INHIBITED = "Input-inhibited: true";
   private static final String EXPECTED_HEADERS = "Server: Test Server\n" +
       "Port: 2123\n" +
       "Protocol: TN5250\n" +
@@ -35,13 +37,20 @@ public class RteSampleResultBuilderTest {
   private static final Screen SCREEN = buildScreen();
   private static final List<Input> CUSTOM_INPUTS = Collections
       .singletonList(new CoordInput(new Position(3, 2), "input"));
+  private static final String SEGMENT_HEADER = "Segments: [{\n  \"range\" : \"[(1,1)-(1,20)]\",\n"
+      + "  \"editable\" : true,\n  \"color\" : \"#00ff00\"\n}]";
+  private static final String DEPRECATED_HEADERS = "Deprecated-headers: Field-positions";
+  private static final String LINE_BREAK = "\n";
 
   @Mock
   private RteProtocolClient client;
 
   private static Screen buildScreen() {
     Screen screen = new Screen(SCREEN_SIZE);
-    screen.addField(0, SCREEN_TEXT);
+    screen.addSegment(new Segment.SegmentBuilder().withLinealPosition(0)
+        .withText(SCREEN_TEXT)
+        .withColor(Screen.DEFAULT_COLOR)
+        .withEditable());
     return screen;
   }
 
@@ -100,9 +109,10 @@ public class RteSampleResultBuilderTest {
   public void shouldGetTerminalStatusHeadersWhenGetResponseHeadersWithSuccessResponse() {
     RteSampleResultBuilder resultBuilder = buildBasicResultBuilder()
         .withSuccessResponse(client);
-    String expectedResponseHeaders = EXPECTED_HEADERS_RESPONSE +
-        SOUNDED_ALARM_TEXT + FIELD_POSITION_TEXT;
-    assertThat(resultBuilder.build().getResponseHeaders()).isEqualTo(expectedResponseHeaders);
+
+    assertThat(resultBuilder.build().getResponseHeaders()).isEqualTo(String.join(LINE_BREAK,
+        DEPRECATED_HEADERS, SOUNDED_ALARM, CURSOR_POSITION_HEADER, SEGMENT_HEADER, INPUT_INHIBITED,
+        FIELD_POSITION));
   }
 
   @Test
@@ -118,8 +128,11 @@ public class RteSampleResultBuilderTest {
     when(client.isAlarmOn()).thenReturn(false);
     RteSampleResultBuilder resultBuilder = buildBasicResultBuilder()
         .withSuccessResponse(client);
-    assertThat(resultBuilder.build().getResponseHeaders())
-        .isEqualTo(EXPECTED_HEADERS_RESPONSE + FIELD_POSITION_TEXT);
+
+    assertThat(resultBuilder.build().getResponseHeaders()).isEqualTo(String.join(LINE_BREAK,
+        DEPRECATED_HEADERS, NOT_SOUNDED_ALARM, CURSOR_POSITION_HEADER, SEGMENT_HEADER,
+        INPUT_INHIBITED,
+        FIELD_POSITION));
   }
 
   @Test
@@ -144,8 +157,10 @@ public class RteSampleResultBuilderTest {
     when(client.getScreen()).thenReturn(null);
     resultBuilder.withInputInhibitedRequest(true)
         .withSuccessResponse(client);
-    assertThat(resultBuilder.build().getResponseHeaders())
-        .isEqualTo(EXPECTED_HEADERS_RESPONSE + SOUNDED_ALARM_TEXT);
+
+    assertThat(resultBuilder.build().getResponseHeaders()).isEqualTo(String.join(LINE_BREAK,
+        DEPRECATED_HEADERS, SOUNDED_ALARM, CURSOR_POSITION_HEADER, "Segments: ", INPUT_INHIBITED,
+        EMPTY_FIELD_POSITION));
   }
 
   @Test
@@ -153,7 +168,10 @@ public class RteSampleResultBuilderTest {
     RteSampleResultBuilder resultBuilder = new RteSampleResultBuilder(new Position(1, 1),
         buildScreen(), null, new TerminalType("IBM-3179-2", new Dimension(24, 80)));
     resultBuilder.withSuccessResponse(client);
+
     assertThat(resultBuilder.build().getResponseHeaders())
-        .isEqualTo(EXPECTED_HEADERS_RESPONSE + SOUNDED_ALARM_TEXT + FIELD_POSITION_TEXT);
+        .isEqualTo(
+            String.join(LINE_BREAK, DEPRECATED_HEADERS, SOUNDED_ALARM, CURSOR_POSITION_HEADER,
+                SEGMENT_HEADER, INPUT_INHIBITED, FIELD_POSITION));
   }
 }

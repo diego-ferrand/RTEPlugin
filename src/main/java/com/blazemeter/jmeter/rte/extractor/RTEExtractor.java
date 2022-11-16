@@ -2,17 +2,19 @@ package com.blazemeter.jmeter.rte.extractor;
 
 import com.blazemeter.jmeter.rte.core.Position;
 import com.blazemeter.jmeter.rte.core.RteSampleResultBuilder;
+import com.blazemeter.jmeter.rte.core.Screen;
+import com.blazemeter.jmeter.rte.core.Segment;
 import com.blazemeter.jmeter.rte.core.TerminalType;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.helger.commons.annotation.VisibleForTesting;
 import java.awt.Dimension;
-import java.util.Arrays;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 import org.apache.jmeter.processor.PostProcessor;
 import org.apache.jmeter.testelement.AbstractScopedTestElement;
 import org.apache.jmeter.testelement.TestElement;
 import org.apache.jmeter.threads.JMeterContext;
-import org.apache.jmeter.threads.JMeterVariables;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -24,8 +26,9 @@ public class RTEExtractor extends AbstractScopedTestElement implements PostProce
   private static final String COLUMN_PROPERTY = "RTEExtractor.column";
   private static final String OFFSET_PROPERTY = "RTEExtractor.offset";
   private static final String VARIABLE_PREFIX_PROPERTY = "RTEExtractor.variablePrefix";
-  private static final String POSITION_TYPE_PROPERTY = "RTEExtractor.positionType";
-  private static final PositionType DEFAULT_POSITION_TYPE = PositionType.CURSOR_POSITION;
+  private static final String EXTRACTION_TYPE_PROPERTY = "RTEExtractor.extractionType";
+  private static final String COLOR_PROPERTY = "RTEExtractor.color";
+  private static final ExtractionType DEFAULT_POSITION_TYPE = ExtractionType.NEXT_FIELD_POSITION;
   private static final int UNSPECIFIED_COORDS = 1;
   private static final int UNSPECIFIED_OFFSET = 0;
   private JMeterContext context;
@@ -38,24 +41,107 @@ public class RTEExtractor extends AbstractScopedTestElement implements PostProce
   public void process() {
     LOG.info("RTE-Extractor {}: processing result", getProperty(TestElement.NAME));
     JMeterContext context = this.context != null ? this.context : getThreadContext();
-    JMeterVariables vars = context.getVariables();
+    this.context = context;
     String variablePrefix = getVariablePrefix();
-    Position position = extractPosition(context.getPreviousResult().getResponseHeaders(),
-        context.getPreviousResult().getRequestHeaders());
-    if (position != null && !variablePrefix.isEmpty()) {
-      vars.put(variablePrefix + "_COLUMN", String.valueOf(position.getColumn()));
-      vars.put(variablePrefix + "_ROW", String.valueOf(position.getRow()));
-    } else if (variablePrefix.isEmpty()) {
+
+    if (variablePrefix.isEmpty()) {
       LOG.error("The variable name in extractor is essential for later usage");
+      return;
+    }
+
+    String responseHeaders = context.getPreviousResult().getResponseHeaders();
+    ExtractionType type = getExtractionType();
+
+    if (type.equals(ExtractionType.CURSOR_POSITION)) {
+      storeCursorPosition(variablePrefix, responseHeaders);
+      return;
+    }
+
+    List<Segment> segments;
+    try {
+      segments = Segment.fromHeaders(responseHeaders);
+    } catch (JsonProcessingException e) {
+      LOG.error("Error parsing response headers", e);
+      return;
+    }
+
+    if (type.equals(ExtractionType.NEXT_FIELD_POSITION)) {
+      storeNextFieldPosition(variablePrefix, segments);
+      return;
+    }
+
+    if (type.equals(ExtractionType.COLOR)) {
+      storeColorAttribute(segments);
     }
   }
 
-  private Position extractPosition(String responseHeaders, String requestHeaders) {
-    if (getPositionType() == PositionType.CURSOR_POSITION) {
-      return extractCursorPosition(responseHeaders);
-    } else {
-      return extractFieldPosition(responseHeaders, requestHeaders);
+  private void storeCursorPosition(String variablePrefix, String responseHeaders) {
+    storePosition(variablePrefix, extractCursorPosition(responseHeaders));
+  }
+
+  private void storePosition(String variablePrefix, Position position) {
+    context.getVariables().put(variablePrefix + "_COLUMN", String.valueOf(position.getColumn()));
+    context.getVariables().put(variablePrefix + "_ROW", String.valueOf(position.getRow()));
+  }
+
+  private void storeNextFieldPosition(String variablePrefix, List<Segment> segments) {
+    String requestHeaders = context.getPreviousResult().getRequestHeaders();
+    if (!isGivenFieldPositionValid(requestHeaders)) {
+      LOG.error("Inserted values for row and column {} in extractor do not match with " +
+          "the screen size {}.", getBasePosition(), getScreenDimensions(requestHeaders));
+      return;
     }
+
+    List<PositionRange> editablePositions = segments.stream()
+        .filter(Segment::isEditable)
+        .map(Segment::getPositionRange)
+        .collect(Collectors.toList());
+
+    Position position = findField(getBasePosition(), editablePositions, getOffsetAsInt());
+    if (position == null) {
+      LOG.error("No field found in for row and column {} with offset {}",
+          getColumn(), getOffset());
+      return;
+    }
+    storePosition(variablePrefix, position);
+  }
+
+  private void storeColorAttribute(List<Segment> segments) {
+    int width = (int) getScreenDimensions(context.getPreviousResult().getRequestHeaders())
+        .getWidth();
+
+    Optional<Segment> coloredSegment = findAnySegmentInPosition(segments,
+        width, getBasePosition());
+
+    if (!coloredSegment.isPresent()) {
+      LOG.error("No segment found with color at position {}", getBasePosition());
+      return;
+    }
+
+    Segment segment = coloredSegment.get();
+    context.getVariables().put(getVariablePrefix(), Segment.getColorAsHex(segment.getColor()));
+  }
+
+  public static Optional<Segment> findColorSegmentByPosition(List<Segment> segments,
+                                                             Position position) {
+    Segment foundSegment = null;
+    for (Segment segment : segments) {
+      if (segment.getPositionRange().contains(position)) {
+        foundSegment = segment;
+      }
+    }
+    return Optional.ofNullable(foundSegment);
+  }
+
+  public static Optional<Segment> findAnySegmentInPosition(List<Segment> segments, int width,
+      Position position) {
+    return segments.stream()
+        .filter(segment -> Screen.buildLinealPosition(segment.getStartPosition(), width)
+            <= Screen.buildLinealPosition(position, width)
+            && Screen.buildLinealPosition(segment.getEndPosition(), width)
+            >= Screen.buildLinealPosition(position, width)
+            && segment.getColor() != null)
+        .findAny();
   }
 
   private Position extractCursorPosition(String responseHeaders) {
@@ -63,42 +149,12 @@ public class RTEExtractor extends AbstractScopedTestElement implements PostProce
         extractHeaderValue(RteSampleResultBuilder.CURSOR_POSITION_HEADER, responseHeaders));
   }
 
-  private String extractHeaderValue(String headerName, String responseHeaders) {
+  private static String extractHeaderValue(String headerName, String responseHeaders) {
     int startPosition = responseHeaders.indexOf(headerName) + headerName.length();
     int endPosition = responseHeaders
         .indexOf(RteSampleResultBuilder.HEADERS_SEPARATOR, startPosition);
-    return responseHeaders.substring(startPosition, endPosition);
-  }
-
-  private Position extractFieldPosition(String responseHeaders, String requestHeaders) {
-
-    if (!isGivenFieldPositionValid(requestHeaders)) {
-      LOG.error(
-          "Inserted values for row and column {} in "
-              + "extractor do not match with the screen size {}.",
-          getBasePosition(), getScreenDimensions(requestHeaders));
-      return null;
-    }
-
-    if (getOffsetAsInt() == 0) {
-      return getBasePosition();
-    }
-
-    String fieldsPositionAsText = extractHeaderValue(
-        RteSampleResultBuilder.FIELDS_POSITION_HEADER, responseHeaders);
-
-    if (fieldsPositionAsText.isEmpty()) {
-      LOG.error("No fields found in screen");
-      return null;
-    }
-
-    List<PositionRange> fieldPositionRanges = Arrays
-        .stream(fieldsPositionAsText.split(RteSampleResultBuilder.FIELD_POSITION_SEPARATOR))
-        .map(PositionRange::fromStrings)
-        .collect(Collectors.toList());
-
-    return findField(getBasePosition(), fieldPositionRanges, getOffsetAsInt());
-
+    return responseHeaders.substring(startPosition, endPosition == -1
+            ? responseHeaders.length() : endPosition);
   }
 
   private int getOffsetAsInt() {
@@ -145,7 +201,7 @@ public class RTEExtractor extends AbstractScopedTestElement implements PostProce
     return offset > 0 ? index - 1 : index;
   }
 
-  private String extractTerminalType(String requestHeaders) {
+  public static String extractTerminalType(String requestHeaders) {
     return extractHeaderValue(RteSampleResultBuilder.HEADERS_TERMINAL_TYPE, requestHeaders);
   }
 
@@ -162,7 +218,7 @@ public class RTEExtractor extends AbstractScopedTestElement implements PostProce
   }
 
   public void setRow(String row) {
-    setProperty(ROW_PROPERTY, row, "1");
+    setProperty(ROW_PROPERTY, row);
   }
 
   public String getColumn() {
@@ -170,7 +226,7 @@ public class RTEExtractor extends AbstractScopedTestElement implements PostProce
   }
 
   public void setColumn(String column) {
-    setProperty(COLUMN_PROPERTY, column, "1");
+    setProperty(COLUMN_PROPERTY, column);
   }
 
   public String getOffset() {
@@ -189,17 +245,18 @@ public class RTEExtractor extends AbstractScopedTestElement implements PostProce
     setProperty(VARIABLE_PREFIX_PROPERTY, prefix);
   }
 
-  public PositionType getPositionType() {
-    return PositionType
-        .valueOf(getPropertyAsString(POSITION_TYPE_PROPERTY, DEFAULT_POSITION_TYPE.name()));
+  public ExtractionType getExtractionType() {
+    return ExtractionType.valueOf(getPropertyAsString(EXTRACTION_TYPE_PROPERTY,
+        DEFAULT_POSITION_TYPE.name()));
   }
 
-  public void setPositionType(PositionType positionType) {
-    setProperty(POSITION_TYPE_PROPERTY, positionType.name());
+  public void setExtractionType(ExtractionType extractionType) {
+    setProperty(EXTRACTION_TYPE_PROPERTY, extractionType.name());
   }
 
   @VisibleForTesting
   public void setContext(JMeterContext context) {
     this.context = context;
   }
+
 }
